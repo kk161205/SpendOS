@@ -37,8 +37,8 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """Convert comma-separated string to list of origins."""
-        return [s.strip() for s in self.allowed_origins.split(",") if s.strip()]
+        """Convert comma-separated string to list of origins and normalize."""
+        return [s.strip().rstrip("/") for s in self.allowed_origins.split(",") if s.strip()]
 
     # ─────────────────────────────────────────────────────────────────────────
     # LLM Model Routing (Groq)
