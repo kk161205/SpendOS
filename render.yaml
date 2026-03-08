@@ -27,18 +27,6 @@ services:
     rootDirectory: SpendOS_Frontend
     buildCommand: npm install && npm run build
     publishPath: dist
-    envVars:
-      - key: VITE_API_BASE_URL
-        fromService:
-          name: spendos-backend
-          type: web
-          property: url
-          suffix: /api
-    routes:
-      # This ensures all non-asset routes are handled by the React app
-      - type: rewrite
-        source: /*
-        destination: /index.html
 
 databases:
   - name: spendos-db
