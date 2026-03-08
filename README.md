@@ -276,35 +276,20 @@ SpendOS emphasizes rigorous code quality via linting and unit testing.
 
 ## ☁️ Hosting on Render
 
-SpendOS is designed to be easily deployed to [Render](https://render.com/). You can deploy the backend and frontend as separate services within a single Render project.
+SpendOS uses **Render Blueprints** for easy, one-click deployment. This automatically sets up the Database, Backend (Web Service), and Frontend (Static Site) with the correct routing and connections.
 
-### 1. Database Setup
+### 🚀 Deployment Steps (One-Click)
 
-1. Create a **New PostgreSQL** database on Render.
-2. Note the **Internal Database URL** for the backend service.
-3. _Note: Render's free PostgreSQL tier expires after 90 days._
-
-### 2. Backend Service (Web Service)
-
-1. Create a new **Web Service** from your GitHub repo.
-2. Set the **Root Directory** to `SpendOS_Backend/smart-procurement`.
-3. Select **Python** as the runtime.
-4. **Build Command**: `pip install -r requirements.txt`
-5. **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-6. Add the following **Environment Variables**:
-   - `DATABASE_URL`: Your PostgreSQL URL.
-   - `GROQ_API_KEY`: Your Groq API key.
-   - `SERPAPI_API_KEY`: Your SerpAPI key.
-   - `ALLOWED_ORIGINS`: Your frontend URL (e.g., `https://spend-os.onrender.com`).
-
-### 3. Frontend Service (Static Site)
-
-1. Create a new **Static Site** from your GitHub repo.
-2. Set the **Root Directory** to `SpendOS_Frontend`.
-3. **Build Command**: `npm run build`
-4. **Publish Directory**: `dist`
-5. Add the following **Environment Variables**:
-   - `VITE_API_BASE_URL`: Your backend URL + `/api` (e.g., `https://spend-os-api.onrender.com/api`).
+1. **Push to GitHub**: Ensure the `render.yaml` file exists in your repository root.
+2. **Create Blueprint**: In the [Render Dashboard](https://dashboard.render.com/):
+   - Select **New +** > **Blueprint**.
+   - Link your GitHub repository.
+3. **Configure Environment**:
+   - Render will detect the architecture and ask for your **Secrets**:
+     - `GROQ_API_KEY`: Your Groq API key.
+     - `SERPAPI_API_KEY`: Your SerpAPI key.
+   - Click **Apply**.
+4. **Wait for Deploy**: Render will build all services. The frontend is automatically configured to handle page refreshes (via a rewrite to `index.html`).
 
 ---
 
