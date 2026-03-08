@@ -1,0 +1,59 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+dist/
+build/
+*.egg-info/
+
+# Environment
+.env
+.env.local
+
+# Node
+node_modules/
+
+# Build outputs (Frontend)
+# dist/ is already covered above
+
+# Lint/Test outputs
+*.log
+test_results.log
+lint_output.txt
+eslint.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# LangGraph/LangChain
+.langsmith/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Extended Node logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Windows
+Desktop.ini

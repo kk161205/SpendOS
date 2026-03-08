@@ -1,0 +1,36 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  backend-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install -r SpendOS/requirements-dev.txt
+      - run: cd SpendOS/SpendOS_Backend/smart-procurement && pytest --cov
+
+  frontend-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: cd SpendOS/SpendOS_Frontend && npm install
+      - run: cd SpendOS/SpendOS_Frontend && npm run lint
+      - run: cd SpendOS/SpendOS_Frontend && npm run test -- --run
+      - run: cd SpendOS/SpendOS_Frontend && npm run build
