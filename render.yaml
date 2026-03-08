@@ -23,6 +23,7 @@ services:
   - type: static
     name: spendos-frontend
     runtime: node
+    plan: free
     rootDirectory: SpendOS_Frontend
     buildCommand: npm install && npm run build
     publishPath: dist
@@ -34,6 +35,7 @@ services:
           property: url
           suffix: /api
     routes:
+      # This ensures all non-asset routes are handled by the React app
       - type: rewrite
         source: /*
         destination: /index.html
