@@ -33,7 +33,7 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 30
 
     # CORS settings
-    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://spend-os.vercel.app"
 
     @property
     def cors_origins_list(self) -> list[str]:

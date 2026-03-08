@@ -32,7 +32,7 @@ export default function RegisterPage() {
     const result = await register(email, password, fullName);
     
     if (result.success) {
-      navigate('/dashboard', { replace: true });
+      navigate('/login', { replace: true });
     } else {
       setError(result.error);
       setIsSubmitting(false);
