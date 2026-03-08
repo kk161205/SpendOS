@@ -30,15 +30,16 @@ export default function ProcurementForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showWeights, setShowWeights] = useState(false);
   const [pollingStatus, setPollingStatus] = useState('');
+  const [progress, setProgress] = useState(0);
 
   const pollIntervalRef = useRef(null);
+  const progressIntervalRef = useRef(null);
 
-  // cleanup interval on unmount
+  // cleanup intervals on unmount
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-      }
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
   }, []);
 
@@ -87,6 +88,16 @@ export default function ProcurementForm() {
 
     try {
       setPollingStatus('pending');
+      setProgress(5);
+      
+      // Simulated progress for the UI
+      progressIntervalRef.current = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) return prev; // Cap at 90% until complete
+          return prev + Math.floor(Math.random() * 5) + 2; // Add 2-6% randomly
+        });
+      }, 1000);
+
       const { task_id } = await procurementService.analyze(payload);
       
       pollIntervalRef.current = setInterval(async () => {
@@ -96,29 +107,42 @@ export default function ProcurementForm() {
           
           if (statusData.status === 'completed') {
             clearInterval(pollIntervalRef.current);
-            const results = statusData.result;
-            const sessionId = addSession(results);
-            navigate('/dashboard/results', { state: { session: { id: sessionId, results, product_name: payload.product_name, category: payload.product_category } } });
-            setIsSubmitting(false);
-            setPollingStatus('');
+            clearInterval(progressIntervalRef.current);
+            setProgress(100);
+            
+            // Give the progress bar 500ms to show 100%
+            setTimeout(() => {
+              const results = statusData.result;
+              const sessionId = addSession(results);
+              navigate('/dashboard/results', { state: { session: { id: sessionId, results, product_name: payload.product_name, category: payload.product_category } } });
+              setIsSubmitting(false);
+              setPollingStatus('');
+              setProgress(0);
+            }, 500);
           } else if (statusData.status === 'failed') {
             clearInterval(pollIntervalRef.current);
+            clearInterval(progressIntervalRef.current);
             setError(statusData.result?.error || 'Analysis failed.');
             setIsSubmitting(false);
             setPollingStatus('');
+            setProgress(0);
           }
         } catch (pollErr) {
           clearInterval(pollIntervalRef.current);
+          clearInterval(progressIntervalRef.current);
           setError(pollErr.message || pollErr.detail || 'An error occurred while checking status.');
           setIsSubmitting(false);
           setPollingStatus('');
+          setProgress(0);
         }
       }, 3000);
 
     } catch (err) {
+      clearInterval(progressIntervalRef.current);
       setError(err.message || err.detail || 'An error occurred during analysis. Please try again.');
       setIsSubmitting(false);
       setPollingStatus('');
+      setProgress(0);
     }
   };
 
@@ -159,7 +183,8 @@ export default function ProcurementForm() {
                 required
                 value={productName}
                 onChange={(e) => setProductName(e.target.value)}
-                className="input-field"
+                disabled={isSubmitting}
+                className={`input-field ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="e.g. Lithium Battery Pack 100Ah"
               />
             </div>
@@ -170,7 +195,8 @@ export default function ProcurementForm() {
                 id="category"
                 value={category}
                 onChange={(e) => setCategory(e.target.value)}
-                className="input-field bg-white"
+                disabled={isSubmitting}
+                className={`input-field bg-white ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               >
                 {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -185,7 +211,8 @@ export default function ProcurementForm() {
                 required
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
-                className="input-field"
+                disabled={isSubmitting}
+                className={`input-field ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
               />
             </div>
 
@@ -196,7 +223,8 @@ export default function ProcurementForm() {
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="input-field resize-none"
+                disabled={isSubmitting}
+                className={`input-field resize-none ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="Include technical specs, physical dimensions, or special material requirements that vendors should meet."
               />
             </div>
@@ -223,7 +251,8 @@ export default function ProcurementForm() {
                   step="0.01"
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
-                  className="input-field pl-7"
+                  disabled={isSubmitting}
+                  className={`input-field pl-7 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   placeholder="50000"
                 />
               </div>
@@ -237,7 +266,8 @@ export default function ProcurementForm() {
                 min="1"
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
-                className="input-field"
+                disabled={isSubmitting}
+                className={`input-field ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="30"
               />
             </div>
@@ -250,11 +280,12 @@ export default function ProcurementForm() {
                     key={cert}
                     type="button"
                     onClick={() => handleCertToggle(cert)}
+                    disabled={isSubmitting}
                     className={`inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium border transition-colors ${
                       selectedCerts.includes(cert)
                         ? 'bg-brand-50 border-brand-200 text-brand-700'
                         : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
-                    }`}
+                    } ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     {cert}
                   </button>
@@ -289,19 +320,19 @@ export default function ProcurementForm() {
                   <div className="flex justify-between mb-1">
                     <label className="text-sm font-medium text-gray-700">Cost Focus ({costWeight})</label>
                   </div>
-                  <input type="range" min="0" max="1" step="0.05" value={costWeight} onChange={(e) => setCostWeight(e.target.value)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600" />
+                  <input type="range" min="0" max="1" step="0.05" value={costWeight} onChange={(e) => setCostWeight(e.target.value)} disabled={isSubmitting} className={`w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} />
                 </div>
                 <div>
                   <div className="flex justify-between mb-1">
                     <label className="text-sm font-medium text-gray-700">Reliability Focus ({relWeight})</label>
                   </div>
-                  <input type="range" min="0" max="1" step="0.05" value={relWeight} onChange={(e) => setRelWeight(e.target.value)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600" />
+                  <input type="range" min="0" max="1" step="0.05" value={relWeight} onChange={(e) => setRelWeight(e.target.value)} disabled={isSubmitting} className={`w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} />
                 </div>
                 <div>
                   <div className="flex justify-between mb-1">
                     <label className="text-sm font-medium text-gray-700">Risk Aversion Focus ({riskWeight})</label>
                   </div>
-                  <input type="range" min="0" max="1" step="0.05" value={riskWeight} onChange={(e) => setRiskWeight(e.target.value)} className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600" />
+                  <input type="range" min="0" max="1" step="0.05" value={riskWeight} onChange={(e) => setRiskWeight(e.target.value)} disabled={isSubmitting} className={`w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-brand-600 ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`} />
                 </div>
               </div>
 
@@ -313,12 +344,35 @@ export default function ProcurementForm() {
           )}
         </div>
 
+        {/* Progress Bar & Status (Visible during analysis) */}
+        {isSubmitting && (
+          <div className="glass-card p-6 sm:p-8 rounded-2xl border-brand-200 bg-brand-50/30 animate-fade-in">
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-sm font-bold text-brand-800">
+                {pollingStatus === 'pending' ? 'Initializing AI Agents...' : 
+                 pollingStatus === 'processing' ? 'Evaluating Global Vendors...' : 
+                 pollingStatus === 'completed' ? 'Finalizing Results...' : 'Analyzing...'}
+              </span>
+              <span className="text-sm font-medium text-brand-600">{progress}%</span>
+            </div>
+            <div className="w-full bg-brand-100 rounded-full h-2.5 overflow-hidden">
+              <div 
+                className="bg-brand-600 h-2.5 rounded-full transition-all duration-500 ease-out" 
+                style={{ width: `${progress}%` }}
+              ></div>
+            </div>
+            <p className="mt-3 text-xs text-brand-600/70 text-center animate-pulse">
+              This process may take 15-30 seconds as multiple specialized AI models orchestrate to bring you the best results.
+            </p>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex items-center justify-end space-x-4 pt-4">
           <button
             type="button"
             onClick={() => navigate('/dashboard')}
-            className="btn-secondary"
+            className={`btn-secondary ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
             disabled={isSubmitting}
           >
             Cancel
