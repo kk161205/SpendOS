@@ -74,12 +74,17 @@ async def login(
         data={"sub": user.id, "email": user.email, "full_name": user.full_name}
     )
     
+    # Security: In production (Vercel + Render), we need Secure and SameSite=None
+    # for cookies to work across different domains.
+    cookie_secure = not settings.debug
+    cookie_samesite = "none" if not settings.debug else "lax"
+    
     response.set_cookie(
         key="access_token",
         value=f"Bearer {token}",
         httponly=True,
-        samesite="lax",
-        secure=False,
+        samesite=cookie_samesite,
+        secure=cookie_secure,
         max_age=1440 * 60, # 24 hours
     )
 
