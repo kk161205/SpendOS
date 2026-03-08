@@ -12,6 +12,7 @@ langchain-groq
 # Database (user management only)
 sqlalchemy>=2.0
 asyncpg>=0.29
+psycopg2-binary>=2.9
 
 # Auth & Security
 python-jose[cryptography]==3.3.0
