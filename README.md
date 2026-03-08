@@ -240,10 +240,10 @@ Once the backend is running, you can interact directly with the Swagger UI docum
 - **Swagger UI:** [http://localhost:8000/docs](http://localhost:8000/docs)
 - **ReDoc:** [http://localhost:8000/redoc](http://localhost:8000/redoc)
 
-| Example Core Endpoints     | Method | Description                                     |
-| -------------------------- | ------ | ----------------------------------------------- |
-| `/api/auth/token`          | `POST` | Exchanges credentials for a JWT token           |
-| `/api/procurement/analyze` | `POST` | Kicks off the AI vendor search/evaluation graph |
+| Example Core Endpoints     | Method | Description                                           |
+| -------------------------- | ------ | ----------------------------------------------------- |
+| `/api/auth/token`          | `POST` | Exchanges credentials for a JWT (via HTTPOnly cookie) |
+| `/api/procurement/analyze` | `POST` | Kicks off the AI vendor search/evaluation graph       |
 
 ---
 
