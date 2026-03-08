@@ -274,6 +274,38 @@ SpendOS emphasizes rigorous code quality via linting and unit testing.
 > [!IMPORTANT]
 > All Pull Requests require passing status checks (frontend linting and backend pytests) before they can be successfully merged into `main`.
 
+## ☁️ Hosting on Render
+
+SpendOS is designed to be easily deployed to [Render](https://render.com/). You can deploy the backend and frontend as separate services within a single Render project.
+
+### 1. Database Setup
+
+1. Create a **New PostgreSQL** database on Render.
+2. Note the **Internal Database URL** for the backend service.
+3. _Note: Render's free PostgreSQL tier expires after 90 days._
+
+### 2. Backend Service (Web Service)
+
+1. Create a new **Web Service** from your GitHub repo.
+2. Set the **Root Directory** to `SpendOS_Backend/smart-procurement`.
+3. Select **Python** as the runtime.
+4. **Build Command**: `pip install -r requirements.txt`
+5. **Start Command**: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+6. Add the following **Environment Variables**:
+   - `DATABASE_URL`: Your PostgreSQL URL.
+   - `GROQ_API_KEY`: Your Groq API key.
+   - `SERPAPI_API_KEY`: Your SerpAPI key.
+   - `ALLOWED_ORIGINS`: Your frontend URL (e.g., `https://spend-os.onrender.com`).
+
+### 3. Frontend Service (Static Site)
+
+1. Create a new **Static Site** from your GitHub repo.
+2. Set the **Root Directory** to `SpendOS_Frontend`.
+3. **Build Command**: `npm run build`
+4. **Publish Directory**: `dist`
+5. Add the following **Environment Variables**:
+   - `VITE_API_BASE_URL`: Your backend URL + `/api` (e.g., `https://spend-os-api.onrender.com/api`).
+
 ---
 
 ## 🔧 Troubleshooting

@@ -33,7 +33,12 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 30
 
     # CORS settings
-    allowed_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        """Convert comma-separated string to list of origins."""
+        return [s.strip() for s in self.allowed_origins.split(",") if s.strip()]
 
     # ─────────────────────────────────────────────────────────────────────────
     # LLM Model Routing (Groq)
