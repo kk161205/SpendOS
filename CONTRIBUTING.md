@@ -9,10 +9,9 @@ First off, thank you for considering contributing to SpendOS! We welcome contrib
 3. **Set up the backend**
    ```bash
    cd SpendOS_Backend/smart-procurement
-   python -m venv venv
+   python -m venv venv  # (Optional if using root venv)
    source venv/bin/activate  # Or venv\Scripts\activate on Windows
-   pip install -r ../../requirements-dev.txt
-   alembic upgrade head
+   pip install -r requirements.txt
    ```
 4. **Set up the frontend**
    ```bash
@@ -26,7 +25,6 @@ First off, thank you for considering contributing to SpendOS! We welcome contrib
 2. **Make your changes**
 3. **Run tests**
    - Backend: `pytest`
-   - Frontend: `npm run test`
 4. **Format and lint your code**
    - Ensure you use `ruff`/`black` for Python and `eslint` for JavaScript.
 5. **Commit your changes**: `git commit -m "Add descriptive message"`
