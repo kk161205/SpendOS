@@ -12,9 +12,11 @@ from sqlalchemy import select
 
 from app.auth import get_password_hash, verify_password, create_access_token
 from app.database import get_db
+from app.config import get_settings
 from app.models.user import User
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
+settings = get_settings()
 
 
 class RegisterRequest(BaseModel):
