@@ -36,6 +36,7 @@ async def analyze_procurement(
     """
     request_id = str(uuid.uuid4())
     
+    task = ProcurementTask(id=request_id, user_id=current_user["user_id"], status="pending")
     db.add(task)
     await db.commit()
     
