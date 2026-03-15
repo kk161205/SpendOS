@@ -133,6 +133,13 @@ async def run_procurement_background(task_id: str, payload: ProcurementRequestSc
                 )
                 db.add(vr)
 
+            # Update the original task status to completed
+            task_query = await db.execute(select(ProcurementTask).where(ProcurementTask.id == task_id))
+            task_to_update = task_query.scalar_one_or_none()
+            if task_to_update:
+                task_to_update.status = "completed"
+                task_to_update.result = final_result
+
             await db.commit()
 
         except Exception as e:
