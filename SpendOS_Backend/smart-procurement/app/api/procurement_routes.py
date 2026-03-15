@@ -34,12 +34,16 @@ async def analyze_procurement(
     Queue a background task to execute the full AI procurement pipeline.
     Returns immediately with a task_id.
     """
+    logger.info(f"[/analyze] Received analysis request for '{payload.product_name}' by user '{current_user['user_id']}'")
+    logger.debug(f"[/analyze] Payload: {payload.model_dump()}")
+
     request_id = str(uuid.uuid4())
     
     task = ProcurementTask(id=request_id, user_id=current_user["user_id"], status="pending")
     db.add(task)
     await db.commit()
     
+    logger.info(f"[/analyze] Created ProcurementTask with ID: {request_id}. Queuing background worker.")
     background_tasks.add_task(run_procurement_background, request_id, payload, current_user["user_id"])
     
     return TaskAcceptedResponse(task_id=request_id, status="pending")
@@ -49,6 +53,7 @@ async def run_procurement_background(task_id: str, payload: ProcurementRequestSc
     """
     Background worker that runs the LangGraph workflow and saves the result to DB.
     """
+    logger.info(f"[background_task] Starting workflow for task {task_id}")
     async with async_session_factory() as db:
         try:
             # Update status to processing
@@ -57,6 +62,7 @@ async def run_procurement_background(task_id: str, payload: ProcurementRequestSc
             if task:
                 task.status = "processing"
                 await db.commit()
+                logger.info(f"[background_task] Task {task_id} marked as processing in DB")
             
             # Build requirements object
             requirements = UserRequirements(
@@ -72,11 +78,14 @@ async def run_procurement_background(task_id: str, payload: ProcurementRequestSc
                 risk_weight=payload.scoring_weights.risk_weight,
             )
 
+            logger.info(f"[background_task] Triggering LangGraph workflow for '{payload.product_name}'")
             final_state = await run_procurement_workflow(requirements)
 
             if final_state.error:
+                logger.error(f"[background_task] Workflow returned error state: {final_state.error}")
                 raise Exception(final_state.error)
 
+            logger.info(f"[background_task] LangGraph workflow completed. Ranked {len(final_state.ranked_vendors)} vendors.")
             vendor_score_responses = []
             for sv in final_state.ranked_vendors:
                 vendor_score_responses.append(VendorScoreResponse(
@@ -141,9 +150,10 @@ async def run_procurement_background(task_id: str, payload: ProcurementRequestSc
                 task_to_update.result = final_result
 
             await db.commit()
+            logger.info(f"[background_task] Successfully finished processing and saving task {task_id}")
 
         except Exception as e:
-            logger.error(f"[background_task] Workflow failed for task {task_id}: {e}")
+            logger.error(f"[background_task] Workflow failed for task {task_id}: {e}", exc_info=True)
             result = await db.execute(select(ProcurementTask).where(ProcurementTask.id == task_id))
             task = result.scalar_one_or_none()
             if task:

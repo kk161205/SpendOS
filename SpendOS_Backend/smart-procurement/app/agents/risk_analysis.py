@@ -40,8 +40,9 @@ async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWork
                 risk_reasoning=reasoning,
                 risk_breakdown=breakdown,
             )
+            logger.info(f"[risk_analysis] Successfully scored {vendor.name} (Risk: {risk_score:.1f})")
         except Exception as e:
-            logger.warning(f"[risk_analysis] Failed for {vendor.name}: {e}")
+            logger.warning(f"[risk_analysis] Failed for {vendor.name}, applying heuristic fallback: {e}", exc_info=True)
             fallback_score = _heuristic_risk_score(vendor)
             sv = ScoredVendor(
                 vendor_data=vendor,

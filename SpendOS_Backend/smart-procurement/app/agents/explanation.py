@@ -27,8 +27,9 @@ async def explanation_node(state: ProcurementWorkflowState) -> ProcurementWorkfl
     try:
         explanation = await _generate_explanation(state)
         state.ai_explanation = explanation
+        logger.info("[explanation] Successfully generated AI recommendation.")
     except Exception as e:
-        logger.warning(f"[explanation] LLM failed: {e}")
+        logger.warning(f"[explanation] LLM failed to generate explanation, using fallback: {e}", exc_info=True)
         state.ai_explanation = _fallback_explanation(state)
 
     logger.info("[explanation] Generated AI recommendation.")

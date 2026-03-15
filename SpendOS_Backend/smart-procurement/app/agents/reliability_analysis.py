@@ -37,8 +37,9 @@ async def reliability_analysis_node(state: ProcurementWorkflowState) -> Procurem
             sv.reliability_score = rel_score
             sv.reliability_reasoning = reasoning
             sv.reliability_breakdown = breakdown
+            logger.info(f"[reliability_analysis] Successfully scored {sv.vendor_data.name} (Reliability: {rel_score:.1f})")
         except Exception as e:
-            logger.warning(f"[reliability_analysis] Failed for {sv.vendor_data.name}: {e}")
+            logger.warning(f"[reliability_analysis] Failed for {sv.vendor_data.name}, applying heuristic fallback: {e}", exc_info=True)
             sv.reliability_score = _heuristic_reliability_score(sv.vendor_data)
             sv.reliability_reasoning = "Heuristic fallback due to LLM error."
             sv.reliability_breakdown = {}

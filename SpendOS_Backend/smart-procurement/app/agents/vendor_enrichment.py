@@ -33,12 +33,13 @@ async def vendor_enrichment_node(state: ProcurementWorkflowState) -> Procurement
         try:
             enriched_vendor = await _enrich_vendor(vendor)
             enriched.append(enriched_vendor)
+            logger.info(f"[vendor_enrichment] Successfully enriched {vendor.name}")
         except Exception as e:
-            logger.warning(f"[vendor_enrichment] Failed to enrich {vendor.name}: {e}")
+            logger.warning(f"[vendor_enrichment] Failed to enrich {vendor.name}, using fallback: {e}", exc_info=True)
             enriched.append(vendor)  # Use unenriched data as fallback
 
     state.enriched_vendors = enriched
-    logger.info(f"[vendor_enrichment] Enriched {len(enriched)} vendors.")
+    logger.info(f"[vendor_enrichment] Enriched {len(enriched)}/{len(state.vendors)} vendors.")
     return state
 
 

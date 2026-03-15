@@ -57,7 +57,7 @@ async def vendor_discovery_node(state: ProcurementWorkflowState) -> ProcurementW
         search_results = _search_vendors_online(req)
 
         if not search_results:
-            logger.warning("[vendor_discovery] No search results found.")
+            logger.warning(f"[vendor_discovery] No search results found for query parameters: {req.product_name} / {req.product_category}")
             state.vendors = []
             return state
 
@@ -97,7 +97,7 @@ def _search_vendors_online(req) -> List[dict]:
             all_results.extend(organic)
             logger.info(f"[vendor_discovery] SerpAPI query '{query}' → {len(organic)} results")
         except Exception as e:
-            logger.warning(f"[vendor_discovery] SerpAPI search failed for '{query}': {e}")
+            logger.error(f"[vendor_discovery] SerpAPI search failed for '{query}': {e}", exc_info=True)
 
     # Deduplicate by link
     seen_links = set()
@@ -178,8 +178,7 @@ async def _extract_vendors_from_results(
         return vendors
 
     except json.JSONDecodeError as e:
-        logger.error(f"[vendor_discovery] JSON parse error: {e}")
-        logger.error(f"[vendor_discovery] Response was: {response[:300] if 'response' in dir() else 'N/A'}")
+        logger.error(f"[vendor_discovery] JSON parse error: {e}. Raw response: {response[:500] if 'response' in dir() else 'N/A'}")
         return []
     except Exception as e:
         logger.error(f"[vendor_discovery] LLM extraction failed: {e}", exc_info=True)
