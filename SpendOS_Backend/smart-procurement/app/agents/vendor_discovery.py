@@ -78,9 +78,10 @@ def _search_vendors_online(req) -> List[dict]:
     Use SerpAPI to search Google for vendor/supplier information.
     Returns a list of organic search result dicts.
     """
+    # Use broader queries that map better to Google organic results
     queries = [
-        f"{req.product_name} suppliers manufacturers {req.product_category}",
-        f"best {req.product_name} vendors wholesale",
+        f"{req.product_name} B2B wholesale suppliers",
+        f"top {req.product_category} manufacturers {req.product_name}",
     ]
 
     all_results = []
@@ -91,9 +92,33 @@ def _search_vendors_online(req) -> List[dict]:
                 "api_key": settings.serp_api_key,
                 "num": 10,
                 "engine": "google",
+                "gl": "us",
+                "hl": "en"
             })
             results = search.get_dict()
+            
+            # SerpAPI returns errors in the dictionary payload instead of raising HTTP exceptions
+            if "error" in results:
+                logger.error(f"[vendor_discovery] SerpAPI returned an error: {results['error']}")
+                continue
+
             organic = results.get("organic_results", [])
+            
+            # If still nothing, try without gl/hl locks which sometimes restrict B2B results
+            if not organic:
+                logger.info(f"[vendor_discovery] Query '{query}' yielded 0 results, retrying without location bounds...")
+                broad_search = GoogleSearch({
+                    "q": query,
+                    "api_key": settings.serp_api_key,
+                    "num": 10,
+                    "engine": "google"
+                })
+                broad_results = broad_search.get_dict()
+                if "error" in broad_results:
+                    logger.error(f"[vendor_discovery] SerpAPI returned an error on retry: {broad_results['error']}")
+                else:
+                    organic = broad_results.get("organic_results", [])
+
             all_results.extend(organic)
             logger.info(f"[vendor_discovery] SerpAPI query '{query}' → {len(organic)} results")
         except Exception as e:
