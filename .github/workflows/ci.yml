@@ -17,8 +17,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -r SpendOS/requirements-dev.txt
-      - run: cd SpendOS/SpendOS_Backend/smart-procurement && pytest --cov
+      - run: pip install -r requirements-dev.txt
+      - run: cd SpendOS_Backend/smart-procurement && pytest --cov
 
   frontend-test:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: cd SpendOS/SpendOS_Frontend && npm install
-      - run: cd SpendOS/SpendOS_Frontend && npm run lint
-      - run: cd SpendOS/SpendOS_Frontend && npm run test -- --run
-      - run: cd SpendOS/SpendOS_Frontend && npm run build
+      - run: cd SpendOS_Frontend && npm install
+      - run: cd SpendOS_Frontend && npm run lint
+      - run: cd SpendOS_Frontend && npm run test -- --run
+      - run: cd SpendOS_Frontend && npm run build
