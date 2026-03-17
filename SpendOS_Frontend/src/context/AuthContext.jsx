@@ -4,34 +4,40 @@ import { authService } from "../services/authService";
 
 const AuthContext = createContext(null);
 
+const getInitialUser = () => {
+  if (typeof window === "undefined") return null;
+  const storedUser = localStorage.getItem("user");
+  if (storedUser) {
+    try {
+      return JSON.parse(storedUser);
+    } catch {
+      localStorage.removeItem("user");
+      return null;
+    }
+  }
+  return null;
+};
+
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState(getInitialUser());
+  const [isAuthenticated, setIsAuthenticated] = useState(!!user);
+  const [isLoading] = useState(false);
+
+  // We keep a mount effect for any side effects needed, but none right now
+  useEffect(() => {
+    // No-op
+  }, []);
 
   const logout = useCallback(async () => {
     try {
       await authService.logout();
-    } catch (e) { // eslint-disable-line no-unused-vars
+    } catch {
       // Ignore logout errors
     }
     localStorage.removeItem("user");
     setUser(null);
     setIsAuthenticated(false);
   }, []);
-
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      try {
-        setUser(JSON.parse(storedUser));
-        setIsAuthenticated(true);
-      } catch (e) { // eslint-disable-line no-unused-vars
-        logout(); // eslint-disable-line react-hooks/exhaustive-deps
-      }
-    }
-    setIsLoading(false);
-  }, [logout]);
 
   const login = useCallback(async (email, password) => {
     try {
@@ -40,7 +46,7 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem("user", JSON.stringify(data.user));
       setIsAuthenticated(true);
       return { success: true };
-    } catch (error) { // eslint-disable-line no-unused-vars
+    } catch (error) {
       return {
         success: false,
         error:
@@ -54,7 +60,7 @@ export const AuthProvider = ({ children }) => {
     try {
       await authService.register(email, password, fullName);
       return await login(email, password);
-    } catch (error) { // eslint-disable-line no-unused-vars
+    } catch (error) {
       let msg = error.message || "Registration failed.";
       if (error.response?.data?.detail) {
         const detail = error.response.data.detail;

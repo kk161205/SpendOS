@@ -52,7 +52,7 @@ export default function VendorRankings({ vendors = [] }) {
                     vendor.final_score >= 70 ? 'text-green-600' : 
                     vendor.final_score >= 50 ? 'text-amber-500' : 'text-red-500'
                   }`}>
-                    {vendor.final_score.toFixed(1)}
+                    {vendor.final_score?.toFixed(1) || '0.0'}
                   </span>
                   <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">Score</span>
                 </div>

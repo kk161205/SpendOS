@@ -57,7 +57,7 @@ export default function SessionCard({ session }) {
             <div className="flex items-center justify-between">
               <div className="font-medium text-gray-900 truncate pr-2">{topVendor.vendor_name}</div>
               <div className={`px-2.5 py-1 flex items-center rounded-md border font-bold text-sm ${getScoreColor(topVendor.final_score)}`}>
-                {topVendor.final_score.toFixed(1)}
+                {topVendor.final_score?.toFixed(1) || '0.0'}
               </div>
             </div>
             

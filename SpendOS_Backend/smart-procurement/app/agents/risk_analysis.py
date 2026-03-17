@@ -68,8 +68,7 @@ async def _analyze_risk(vendor: VendorData):
         f"Negative news mentions: {vendor.negative_news_mentions}\n"
         f"Compliance issues: {vendor.compliance_issues}\n"
         f"Publicly traded: {vendor.is_publicly_traded}\n"
-        f"Annual revenue: ${vendor.annual_revenue_usd:,.0f} USD" 
-        f" " if vendor.annual_revenue_usd else "Annual revenue: Unknown\n"
+        f"Annual revenue: ${vendor.annual_revenue_usd:,.0f} USD\n" if vendor.annual_revenue_usd else "Annual revenue: Unknown\n"
         f"\nProvide risk assessment as JSON."
     )
 

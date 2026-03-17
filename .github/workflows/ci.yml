@@ -36,7 +36,7 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Run tests
         env:
-          DATABASE_URL: postgresql://user:password@localhost:5432/spendos_test
+          DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/spendos_test
         run: cd SpendOS_Backend/smart-procurement && pytest --cov
 
   frontend-test:

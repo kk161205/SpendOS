@@ -22,12 +22,11 @@ export const SessionProvider = ({ children }) => {
         const history = await procurementService.getHistory();
         setSessions(history);
         saveSessions(user.user_id, history); 
-      } catch (e) { // eslint-disable-line no-unused-vars
+      } catch {
         setSessions(getSessions(user.user_id));
       }
     };
     initSessions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const addSession = (sessionData) => {
