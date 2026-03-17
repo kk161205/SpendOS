@@ -34,10 +34,18 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
+      - name: Wait for Postgres
+        run: |
+          until pg_isready -h localhost -p 5432 -U user; do
+            echo "Waiting for postgres..."
+            sleep 2
+          done
       - name: Run tests
         env:
           DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/spendos_test
-        run: cd SpendOS_Backend/smart-procurement && pytest --cov
+        run: |
+          cd SpendOS_Backend/smart-procurement
+          pytest -v --cov
 
   frontend-test:
     runs-on: ubuntu-latest

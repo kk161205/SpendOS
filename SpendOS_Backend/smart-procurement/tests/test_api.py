@@ -26,31 +26,29 @@ async def client():
 async def auth_token(client: AsyncClient):
     """Register a test user and return a valid JWT token string."""
     import time
+    # Use higher precision for uniqueness
     email = f"test{int(time.time() * 1000)}@example.com"
     await client.post("/api/auth/register", json={
         "email": email,
         "password": "testpassword",
         "full_name": "Test User",
     })
-    # Token endpoint expects form data
     resp = await client.post("/api/auth/token", data={
         "username": email,
         "password": "testpassword",
     })
-    # Return the raw token value from cookie
-    cookie = resp.cookies.get("access_token")
-    if cookie and cookie.startswith("Bearer "):
-        return cookie.split(" ")[1]
-    return cookie
+    # The cookie value from the server is "Bearer <jwt>"
+    token_with_prefix = resp.cookies.get("access_token")
+    if token_with_prefix and " " in token_with_prefix:
+         return token_with_prefix.split(" ")[1]
+    return token_with_prefix
 
 
 @pytest.fixture
 def auth_headers(auth_token):
     """Fixture to provide authentication headers with the JWT token."""
     if auth_token:
-        # The app expects the token in a cookie named 'access_token' 
-        # but for tests we can also inject it via headers if needed, 
-        # though the current get_current_user implementation reads from cookies.
+        # We need to send the EXACT cookie value the app expects: "Bearer <jwt>"
         return {"Cookie": f"access_token=Bearer {auth_token}"}
     return {}
 
