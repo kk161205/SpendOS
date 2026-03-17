@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { getSessions, saveSessions } from '../utils/localStorage';
 import { procurementService } from '../services/procurementService';
@@ -21,11 +22,12 @@ export const SessionProvider = ({ children }) => {
         const history = await procurementService.getHistory();
         setSessions(history);
         saveSessions(user.user_id, history); 
-      } catch (err) {
+      } catch (e) { // eslint-disable-line no-unused-vars
         setSessions(getSessions(user.user_id));
       }
     };
     initSessions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   const addSession = (sessionData) => {

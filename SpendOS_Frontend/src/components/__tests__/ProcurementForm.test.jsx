@@ -11,7 +11,7 @@ describe('ProcurementForm', () => {
   })
 
   it('validates missing fields', async () => {
-    const user = userEvent.setup()
+    userEvent.setup()
     render(<ProcurementForm />)
     
     // Immediate click without typing anything

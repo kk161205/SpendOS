@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { authService } from "../services/authService";
 
 const AuthContext = createContext(null);
@@ -8,27 +9,38 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } catch (e) { // eslint-disable-line no-unused-vars
+      // Ignore logout errors
+    }
+    localStorage.removeItem("user");
+    setUser(null);
+    setIsAuthenticated(false);
+  }, []);
+
   useEffect(() => {
-    const storedUser = localStorage.getItem('user');
+    const storedUser = localStorage.getItem("user");
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
         setIsAuthenticated(true);
-      } catch (err) {
-        logout();
+      } catch (e) { // eslint-disable-line no-unused-vars
+        logout(); // eslint-disable-line react-hooks/exhaustive-deps
       }
     }
     setIsLoading(false);
-  }, []);
+  }, [logout]);
 
-  const login = async (email, password) => {
+  const login = useCallback(async (email, password) => {
     try {
       const data = await authService.login(email, password);
       setUser(data.user);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      localStorage.setItem("user", JSON.stringify(data.user));
       setIsAuthenticated(true);
       return { success: true };
-    } catch (error) {
+    } catch (error) { // eslint-disable-line no-unused-vars
       return {
         success: false,
         error:
@@ -36,13 +48,13 @@ export const AuthProvider = ({ children }) => {
           "Login failed. Please check your credentials.",
       };
     }
-  };
+  }, []);
 
-  const register = async (email, password, fullName) => {
+  const register = useCallback(async (email, password, fullName) => {
     try {
       await authService.register(email, password, fullName);
       return await login(email, password);
-    } catch (error) {
+    } catch (error) { // eslint-disable-line no-unused-vars
       let msg = error.message || "Registration failed.";
       if (error.response?.data?.detail) {
         const detail = error.response.data.detail;
@@ -56,16 +68,7 @@ export const AuthProvider = ({ children }) => {
       }
       return { success: false, error: msg };
     }
-  };
-
-  const logout = async () => {
-    try {
-      await authService.logout();
-    } catch (e) {}
-    localStorage.removeItem('user');
-    setUser(null);
-    setIsAuthenticated(false);
-  };
+  }, [login]);
 
   return (
     <AuthContext.Provider

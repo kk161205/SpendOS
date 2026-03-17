@@ -12,13 +12,32 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.9", "3.10", "3.11"]
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: user
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: spendos_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - run: pip install -r requirements-dev.txt
-      - run: cd SpendOS_Backend/smart-procurement && pytest --cov
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Run tests
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/spendos_test
+        run: cd SpendOS_Backend/smart-procurement && pytest --cov
 
   frontend-test:
     runs-on: ubuntu-latest

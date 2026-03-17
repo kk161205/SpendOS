@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env?.VITE_API_BASE_URL || 'http://localhost:800
 
 export const handlers = [
   // Mock Login endpoint
-  http.post(`${API_BASE_URL}/auth/token`, async ({ request }) => {
+  http.post(`${API_BASE_URL}/auth/token`, async () => {
     // We expect form data username and password
     return HttpResponse.json({
       access_token: 'fake-jwt-token-for-testing',
@@ -13,7 +13,7 @@ export const handlers = [
   }),
 
   // Mock Analyze Procurement endpoint
-  http.post(`${API_BASE_URL}/procurement/analyze`, async ({ request }) => {
+  http.post(`${API_BASE_URL}/procurement/analyze`, async () => {
     return HttpResponse.json({
       request_id: '1234',
       product_name: 'Test Product',
