@@ -7,6 +7,7 @@ import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, patch
+import time
 
 from app.main import app
 from app.graph.state import ProcurementWorkflowState, ScoredVendor, VendorData
@@ -14,56 +15,53 @@ from app.graph.state import ProcurementWorkflowState, ScoredVendor, VendorData
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session")
 async def client():
-    """Async HTTP client connected to the FastAPI test app."""
+    """Async HTTP client connected to the FastAPI test app with cookie support."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
 
 
-@pytest_asyncio.fixture
-async def auth_token(client: AsyncClient):
-    """Register a test user and return a valid JWT token string."""
-    import time
-    # Use higher precision for uniqueness
-    email = f"test{int(time.time() * 1000)}@example.com"
+@pytest_asyncio.fixture(scope="session")
+async def authenticated_client(client: AsyncClient):
+    """Register a test user and ensure the client has the auth cookie and headers."""
+    timestamp = int(time.time() * 1000)
+    email = f"test{timestamp}@example.com"
+    password = "securepassword123"
+    
+    # 1. Register
     await client.post("/api/auth/register", json={
         "email": email,
-        "password": "testpassword",
+        "password": password,
         "full_name": "Test User",
     })
+    
+    # 2. Login (This sets the 'access_token' cookie in the client)
     resp = await client.post("/api/auth/token", data={
         "username": email,
-        "password": "testpassword",
+        "password": password,
     })
-    # The cookie value from the server is "Bearer <jwt>"
+    
+    # Also set Authorization header as a backup (more robust for ASGITransport tests)
     token_with_prefix = resp.cookies.get("access_token")
-    if token_with_prefix and " " in token_with_prefix:
-         return token_with_prefix.split(" ")[1]
-    return token_with_prefix
-
-
-@pytest.fixture
-def auth_headers(auth_token):
-    """Fixture to provide authentication headers with the JWT token."""
-    if auth_token:
-        # We need to send the EXACT cookie value the app expects: "Bearer <jwt>"
-        return {"Cookie": f"access_token=Bearer {auth_token}"}
-    return {}
+    if token_with_prefix:
+        client.headers.update({"Authorization": token_with_prefix.strip('"')})
+    
+    return client
 
 
 # ── Health Check ───────────────────────────────────────────────────────────────
 
 class TestHealth:
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_health_endpoint_returns_200(self, client):
         resp = await client.get("/health")
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "healthy"
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_root_returns_service_info(self, client):
         resp = await client.get("/")
         assert resp.status_code == 200
@@ -73,58 +71,61 @@ class TestHealth:
 # ── Auth ───────────────────────────────────────────────────────────────────────
 
 class TestAuth:
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_register_new_user(self, client):
-        import time
+        timestamp = int(time.time() * 1000)
         resp = await client.post("/api/auth/register", json={
-            "email": f"new{int(time.time())}@example.com",
-            "password": "securepassword",
+            "email": f"new{timestamp}@example.com",
+            "password": "securepassword123",
             "full_name": "New User",
         })
         assert resp.status_code == 201
         assert "user_id" in resp.json()
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_duplicate_email_rejected(self, client):
-        import time
-        email = f"dup{int(time.time())}@example.com"
+        timestamp = int(time.time() * 1000)
+        email = f"dup{timestamp}@example.com"
         payload = {"email": email, "password": "password123", "full_name": "Dup"}
         await client.post("/api/auth/register", json=payload)
         resp = await client.post("/api/auth/register", json=payload)
         assert resp.status_code == 400
 
-    @pytest.mark.asyncio
-    async def test_login_returns_token(self, client):
-        import time
-        email = f"login{int(time.time())}@example.com"
+    @pytest.mark.asyncio(scope="session")
+    async def test_login_returns_token_in_cookie(self, client):
+        timestamp = int(time.time() * 1000)
+        email = f"login{timestamp}@example.com"
+        password = "securepassword123"
         await client.post("/api/auth/register", json={
-            "email": email, "password": "mypassword", "full_name": "Login Test"
+            "email": email, "password": password, "full_name": "Login Test"
         })
-        # Token endpoint expects form data
         resp = await client.post("/api/auth/token", data={
-            "username": email, "password": "mypassword"
+            "username": email, "password": password
         })
         assert resp.status_code == 200
-        assert "access_token" in resp.json()
+        assert "access_token" in resp.cookies
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_wrong_password_rejected(self, client):
-        import time
-        email = f"wrongpw{int(time.time())}@example.com"
+        timestamp = int(time.time() * 1000)
+        email = f"wrongpw{timestamp}@example.com"
         await client.post("/api/auth/register", json={
-            "email": email, "password": "correctpass", "full_name": "X"
+            "email": email, "password": "correctpassword", "full_name": "X"
         })
         resp = await client.post("/api/auth/token", data={
-            "username": email, "password": "wrongpass"
+            "username": email, "password": "wrongpassword"
         })
         assert resp.status_code == 401
 
-    @pytest.mark.asyncio
+    @pytest.mark.asyncio(scope="session")
     async def test_protected_endpoint_requires_auth(self, client):
-        resp = await client.post("/api/procurement/analyze", json={
-            "product_name": "Test", "product_category": "test", "quantity": 1
-        })
-        assert resp.status_code == 401
+        # Fresh client without cookies or auth headers
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as clean_client:
+            resp = await clean_client.post("/api/procurement/analyze", json={
+                "product_name": "Test", "product_category": "test", "quantity": 1
+            })
+            assert resp.status_code == 401
 
 
 # ── Procurement ────────────────────────────────────────────────────────────────
@@ -152,8 +153,8 @@ class TestProcurement:
             ai_explanation="Best Vendor Inc is the recommended vendor based on analysis.",
         )
 
-    @pytest.mark.asyncio
-    async def test_procurement_analyze_returns_results(self, client, auth_headers):
+    @pytest.mark.asyncio(scope="session")
+    async def test_procurement_analyze_returns_results(self, authenticated_client):
         mock_state = self._mock_workflow_state()
 
         with patch(
@@ -161,7 +162,7 @@ class TestProcurement:
             new_callable=AsyncMock,
             return_value=mock_state,
         ):
-            resp = await client.post(
+            resp = await authenticated_client.post(
                 "/api/procurement/analyze",
                 json={
                     "product_name": "Industrial Sensor",
@@ -174,18 +175,23 @@ class TestProcurement:
                         "risk_weight": 0.25,
                     },
                 },
-                headers=auth_headers,
             )
             assert resp.status_code == 200
             data = resp.json()
-            assert data["status"] == "completed"
-            assert len(data["ranked_vendors"]) == 1
-            assert data["ranked_vendors"][0]["vendor_name"] == "Best Vendor Inc"
+            assert data["status"] == "pending"
+            task_id = data["task_id"]
+            
+            # Follow-up: check status (should be completed as background tasks run sync in these tests)
+            status_resp = await authenticated_client.get(f"/api/procurement/status/{task_id}")
+            assert status_resp.status_code == 200
+            status_data = status_resp.json()
+            assert status_data["status"] == "completed"
+            assert status_data["result"]["ranked_vendors"][0]["vendor_name"] == "Best Vendor Inc"
 
-    @pytest.mark.asyncio
-    async def test_invalid_weights_rejected(self, client, auth_headers):
+    @pytest.mark.asyncio(scope="session")
+    async def test_invalid_weights_rejected(self, authenticated_client):
         """Weights that don't sum to 1.0 should be rejected."""
-        resp = await client.post(
+        resp = await authenticated_client.post(
             "/api/procurement/analyze",
             json={
                 "product_name": "Test",
@@ -197,15 +203,13 @@ class TestProcurement:
                     "risk_weight": 0.5,  # Sum = 1.5
                 },
             },
-            headers=auth_headers,
         )
         assert resp.status_code == 422
 
-    @pytest.mark.asyncio
-    async def test_missing_required_fields_rejected(self, client, auth_headers):
-        resp = await client.post(
+    @pytest.mark.asyncio(scope="session")
+    async def test_missing_required_fields_rejected(self, authenticated_client):
+        resp = await authenticated_client.post(
             "/api/procurement/analyze",
             json={"quantity": 100},
-            headers=auth_headers,
         )
         assert resp.status_code == 422

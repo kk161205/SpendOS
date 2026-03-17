@@ -34,18 +34,30 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 async def get_current_user(request: Request) -> dict:
-    """FastAPI dependency — decode JWT from HttpOnly cookie and return user payload."""
+    """FastAPI dependency — decode JWT from HttpOnly cookie or Authorization header."""
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
     )
     
+    # 1. Try Cookie
     token = request.cookies.get("access_token")
+    
+    # 2. Try Authorization Header
+    if not token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            token = auth_header.strip('"')
+
     if not token:
         raise credentials_exception
 
+    # Handle Bearer prefix
     if token.startswith("Bearer "):
-        token = token.split(" ")[1]
+        try:
+            token = token.split(" ")[1]
+        except IndexError:
+            raise credentials_exception
 
     try:
         payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
