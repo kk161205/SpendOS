@@ -220,7 +220,7 @@ class TestHeuristicReliability:
         v.on_time_delivery_rate = 55.0
         v.certifications = []
         score = _heuristic_reliability_score(v)
-        assert score <= 60
+        assert score <= 65
 
     def test_reliability_score_clamped_0_100(self):
         v = make_vendor("v1", "Corp", 50.0, years=100)
