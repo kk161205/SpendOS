@@ -31,45 +31,71 @@ export default function ScoreBreakdown({ results }) {
           </div>
         </div>
 
-        {/* Weights Graphic */}
-        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900 flex items-center mb-6">
+        {/* Weights Graphic - Pie Chart */}
+        <div className="bg-gray-50 rounded-2xl p-6 border border-gray-100 flex flex-col h-full">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center mb-8">
             <Target className="w-5 h-5 mr-2 text-brand-600" /> Decision Weight Allocations
           </h3>
-          <div className="space-y-6 mt-4">
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold flex items-center text-gray-700">
-                  <TrendingUp className="w-4 h-4 mr-2 text-blue-500" /> Cost Sensitivity
-                </span>
-                <span className="text-sm font-bold bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{(weights.cost_weight * 100).toFixed(0)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${weights.cost_weight * 100}%` }}></div>
-              </div>
-            </div>
-            
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold flex items-center text-gray-700">
-                  <Award className="w-4 h-4 mr-2 text-green-500" /> Reliability Focus
-                </span>
-                <span className="text-sm font-bold bg-green-100 text-green-800 px-2 py-0.5 rounded">{(weights.reliability_weight * 100).toFixed(0)}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-green-500 h-2 rounded-full" style={{ width: `${weights.reliability_weight * 100}%` }}></div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-around gap-8 flex-grow">
+            {/* Pie Chart SVG */}
+            <div className="relative w-48 h-48 drop-shadow-md">
+              <svg viewBox="0 0 32 32" className="w-full h-full -rotate-90">
+                {/* Reliability Segment (Green) */}
+                <circle
+                  cx="16" cy="16" r="15.915494"
+                  fill="transparent"
+                  stroke="#22c55e"
+                  strokeWidth="3.5"
+                  strokeDasharray={`${weights.reliability_weight * 100} 100`}
+                />
+                {/* Cost Segment (Blue) */}
+                <circle
+                  cx="16" cy="16" r="15.915494"
+                  fill="transparent"
+                  stroke="#3b82f6"
+                  strokeWidth="3.5"
+                  strokeDasharray={`${weights.cost_weight * 100} 100`}
+                  strokeDashoffset={`-${weights.reliability_weight * 100}`}
+                />
+                {/* Risk Segment (Amber) */}
+                <circle
+                  cx="16" cy="16" r="15.915494"
+                  fill="transparent"
+                  stroke="#f59e0b"
+                  strokeWidth="3.5"
+                  strokeDasharray={`${weights.risk_weight * 100} 100`}
+                  strokeDashoffset={`-${(weights.reliability_weight + weights.cost_weight) * 100}`}
+                />
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center flex-col">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-tighter">Total</span>
+                <span className="text-xl font-black text-gray-800">100%</span>
               </div>
             </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold flex items-center text-gray-700">
-                  <ShieldAlert className="w-4 h-4 mr-2 text-amber-500" /> Risk Aversion
-                </span>
-                <span className="text-sm font-bold bg-amber-100 text-amber-800 px-2 py-0.5 rounded">{(weights.risk_weight * 100).toFixed(0)}%</span>
+            {/* Legend */}
+            <div className="space-y-4 w-full sm:w-auto">
+              <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors">
+                <div className="w-3 h-3 rounded-full bg-blue-500 shadow-sm shadow-blue-200"></div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Cost Sensitivity</span>
+                  <span className="text-sm font-bold text-gray-900">{(weights.cost_weight * 100).toFixed(0)}%</span>
+                </div>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div className="bg-amber-500 h-2 rounded-full" style={{ width: `${weights.risk_weight * 100}%` }}></div>
+              <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors">
+                <div className="w-3 h-3 rounded-full bg-green-500 shadow-sm shadow-green-200"></div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Reliability Focus</span>
+                  <span className="text-sm font-bold text-gray-900">{(weights.reliability_weight * 100).toFixed(0)}%</span>
+                </div>
+              </div>
+              <div className="flex items-center space-x-3 p-2 rounded-lg hover:bg-white transition-colors">
+                <div className="w-3 h-3 rounded-full bg-amber-500 shadow-sm shadow-amber-200"></div>
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-gray-500 uppercase">Risk Aversion</span>
+                  <span className="text-sm font-bold text-gray-900">{(weights.risk_weight * 100).toFixed(0)}%</span>
+                </div>
               </div>
             </div>
           </div>
