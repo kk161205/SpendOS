@@ -109,6 +109,7 @@ async def run_procurement_background(task_id: str, payload: ProcurementRequestSc
             final_result = ProcurementAnalysisResponse(
                 request_id=task_id,
                 product_name=payload.product_name,
+                product_category=payload.product_category,
                 status="completed",
                 ranked_vendors=vendor_score_responses,
                 ai_explanation=final_state.ai_explanation,
@@ -229,7 +230,8 @@ async def get_procurement_history(
         results_obj = {
             "ranked_vendors": vendor_dicts,
             "total_vendors_evaluated": len(vendor_dicts),
-            "ai_explanation": s.ai_explanation
+            "ai_explanation": s.ai_explanation,
+            "product_category": s.category,
         }
         
         response.append(ProcurementHistorySessionResponse(
