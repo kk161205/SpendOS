@@ -71,6 +71,7 @@ class ProcurementAnalysisResponse(BaseModel):
     """Full response from the procurement analysis endpoint."""
     request_id: str
     product_name: str
+    product_category: str
     status: str
     ranked_vendors: List[VendorScoreResponse]
     ai_explanation: str
@@ -98,5 +99,3 @@ class ProcurementHistorySessionResponse(BaseModel):
     category: str = "General"
     status: str
     results: Optional[dict] = None  # Using dict since we construct it manually
-
-
