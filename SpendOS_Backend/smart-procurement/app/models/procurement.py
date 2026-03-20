@@ -20,7 +20,7 @@ class ProcurementSession(Base):
     budget = Column(Float, nullable=True)
     status = Column(String, nullable=False, default="completed")
     ai_explanation = Column(String, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationship back to VendorResult
     vendor_results = relationship("VendorResult", back_populates="session", cascade="all, delete-orphan")

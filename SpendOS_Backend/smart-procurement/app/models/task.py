@@ -16,4 +16,4 @@ class ProcurementTask(Base):
     user_id = Column(String, nullable=False, index=True)
     status = Column(String, nullable=False, default="pending")
     result = Column(JSONB, nullable=True)
-    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
