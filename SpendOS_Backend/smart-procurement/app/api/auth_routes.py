@@ -6,7 +6,7 @@ POST /api/auth/token    — obtain a JWT access token
 
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -23,6 +23,17 @@ class RegisterRequest(BaseModel):
     email: str = Field(..., description="User email")
     password: str = Field(..., min_length=8)
     full_name: str = Field(..., min_length=2)
+
+    @field_validator("password")
+    @classmethod
+    def password_complexity(cls, v: str) -> str:
+        if not any(c.isupper() for c in v):
+            raise ValueError("Password must contain at least one uppercase letter")
+        if not any(c.isdigit() for c in v):
+            raise ValueError("Password must contain at least one number")
+        if all(c.isalnum() for c in v):
+            raise ValueError("Password must contain at least one special character")
+        return v
 
 
 class TokenResponse(BaseModel):
