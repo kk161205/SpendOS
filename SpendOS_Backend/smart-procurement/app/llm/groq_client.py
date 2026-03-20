@@ -33,6 +33,13 @@ def get_groq_llm(model_name: str, temperature: float = 0.1) -> ChatGroq:
     )
 
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_retry_after_or_exponential(),
+    retry=retry_if_exception(is_transient_error),
+    before_sleep=before_sleep_log(logger, logging.WARNING),
+    reraise=True,
+)
 async def invoke_llm(
     model_name: str,
     system_prompt: str,
@@ -40,27 +47,12 @@ async def invoke_llm(
     temperature: float = 0.1,
 ) -> str:
     """
-    Invoke a Groq LLM and return the text response.
-    
-    Args:
-        model_name: Groq model identifier.
-        system_prompt: System message to set LLM context.
-        user_prompt: The actual task prompt.
-        temperature: Sampling temperature.
-    
-    Returns:
-        LLM text response string.
+    Invoke a Groq LLM and return the text response with automatic retries.
     """
     llm = get_groq_llm(model_name, temperature)
     messages = [
         SystemMessage(content=system_prompt),
         HumanMessage(content=user_prompt),
     ]
-    try:
-        # Add a delay before the request to prevent hitting rate limits
-        await asyncio.sleep(2.5)
-        response = await llm.ainvoke(messages)
-        return response.content
-    except Exception as e:
-        logger.error(f"Groq LLM error (model={model_name}): {e}")
-        raise
+    response = await llm.ainvoke(messages)
+    return response.content

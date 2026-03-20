@@ -23,20 +23,24 @@ Do not include any explanation or markdown."""
 
 async def vendor_enrichment_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
     """
-    Enrich vendor profiles using LLM analysis.
+    Enrich vendor profiles using LLM analysis in parallel.
     Populates state.enriched_vendors from state.vendors.
     """
     state.current_node = "vendor_enrichment"
-    enriched = []
 
-    for vendor in state.vendors:
-        try:
-            enriched_vendor = await _enrich_vendor(vendor)
-            enriched.append(enriched_vendor)
-            logger.info(f"[vendor_enrichment] Successfully enriched {vendor.name}")
-        except Exception as e:
-            logger.warning(f"[vendor_enrichment] Failed to enrich {vendor.name}, using fallback: {e}", exc_info=True)
-            enriched.append(vendor)  # Use unenriched data as fallback
+    # Process all vendors in parallel
+    tasks = [_enrich_vendor(vendor) for vendor in state.vendors]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    enriched = []
+    for i, res in enumerate(results):
+        if isinstance(res, Exception):
+            vendor = state.vendors[i]
+            logger.warning(f"[vendor_enrichment] Failed to enrich {vendor.name}, using fallback: {res}")
+            enriched.append(vendor)
+        else:
+            enriched.append(res)
+            logger.info(f"[vendor_enrichment] Successfully enriched {res.name}")
 
     state.enriched_vendors = enriched
     logger.info(f"[vendor_enrichment] Enriched {len(enriched)}/{len(state.vendors)} vendors.")

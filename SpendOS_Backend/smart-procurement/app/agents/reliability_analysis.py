@@ -25,11 +25,11 @@ reliability based on their profile. Return ONLY valid JSON:
 
 async def reliability_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
     """
-    Compute reliability scores and attach to existing ScoredVendor objects.
+    Compute reliability scores and attach to existing ScoredVendor objects in parallel.
     """
     state.current_node = "reliability_analysis"
 
-    for sv in state.scored_vendors:
+    async def _safe_analyze(sv):
         try:
             rel_score, reasoning, breakdown = await _analyze_reliability(
                 sv.vendor_data, state.user_requirements
@@ -39,10 +39,14 @@ async def reliability_analysis_node(state: ProcurementWorkflowState) -> Procurem
             sv.reliability_breakdown = breakdown
             logger.info(f"[reliability_analysis] Successfully scored {sv.vendor_data.name} (Reliability: {rel_score:.1f})")
         except Exception as e:
-            logger.warning(f"[reliability_analysis] Failed for {sv.vendor_data.name}, applying heuristic fallback: {e}", exc_info=True)
+            logger.warning(f"[reliability_analysis] Failed for {sv.vendor_data.name}, applying heuristic fallback: {e}")
             sv.reliability_score = _heuristic_reliability_score(sv.vendor_data)
             sv.reliability_reasoning = "Heuristic fallback due to LLM error."
             sv.reliability_breakdown = {}
+        return sv
+
+    tasks = [_safe_analyze(sv) for sv in state.scored_vendors]
+    state.scored_vendors = list(await asyncio.gather(*tasks))
 
     logger.info(f"[reliability_analysis] Completed for {len(state.scored_vendors)} vendors.")
     return state
