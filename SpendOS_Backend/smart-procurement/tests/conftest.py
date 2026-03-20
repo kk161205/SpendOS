@@ -1,3 +1,6 @@
+import os
+os.environ["SECRET_KEY"] = "test-secret-key-for-unit-tests"
+
 import asyncio
 import pytest
 import pytest_asyncio
