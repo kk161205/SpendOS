@@ -28,7 +28,7 @@ async def authenticated_client(client: AsyncClient):
     """Register a test user and ensure the client has the auth cookie and headers."""
     timestamp = int(time.time() * 1000)
     email = f"test{timestamp}@example.com"
-    password = "securepassword123"
+    password = "StrongP@ss123"
     
     # 1. Register
     await client.post("/api/auth/register", json={
@@ -76,7 +76,7 @@ class TestAuth:
         timestamp = int(time.time() * 1000)
         resp = await client.post("/api/auth/register", json={
             "email": f"new{timestamp}@example.com",
-            "password": "securepassword123",
+            "password": "StrongP@ss123",
             "full_name": "New User",
         })
         assert resp.status_code == 201
@@ -86,7 +86,7 @@ class TestAuth:
     async def test_duplicate_email_rejected(self, client):
         timestamp = int(time.time() * 1000)
         email = f"dup{timestamp}@example.com"
-        payload = {"email": email, "password": "password123", "full_name": "Dup"}
+        payload = {"email": email, "password": "StrongP@ss123", "full_name": "Dup"}
         await client.post("/api/auth/register", json=payload)
         resp = await client.post("/api/auth/register", json=payload)
         assert resp.status_code == 400
@@ -95,7 +95,7 @@ class TestAuth:
     async def test_login_returns_token_in_cookie(self, client):
         timestamp = int(time.time() * 1000)
         email = f"login{timestamp}@example.com"
-        password = "securepassword123"
+        password = "StrongP@ss123"
         await client.post("/api/auth/register", json={
             "email": email, "password": password, "full_name": "Login Test"
         })
@@ -110,7 +110,7 @@ class TestAuth:
         timestamp = int(time.time() * 1000)
         email = f"wrongpw{timestamp}@example.com"
         await client.post("/api/auth/register", json={
-            "email": email, "password": "correctpassword", "full_name": "X"
+            "email": email, "password": "CorrectP@ss123", "full_name": "X"
         })
         resp = await client.post("/api/auth/token", data={
             "username": email, "password": "wrongpassword"
