@@ -3,7 +3,7 @@ Procurement Models — store historical procurement session results.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, Integer, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 
@@ -20,7 +20,7 @@ class ProcurementSession(Base):
     budget = Column(Float, nullable=True)
     status = Column(String, nullable=False, default="completed")
     ai_explanation = Column(String, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationship back to VendorResult
     vendor_results = relationship("VendorResult", back_populates="session", cascade="all, delete-orphan")
