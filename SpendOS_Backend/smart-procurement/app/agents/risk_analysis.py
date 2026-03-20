@@ -25,35 +25,35 @@ provide a detailed risk assessment. Return ONLY valid JSON:
 
 async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
     """
-    Compute risk scores for all enriched vendors.
+    Compute risk scores for all enriched vendors in parallel.
     Creates ScoredVendor objects with risk data.
     """
     state.current_node = "risk_analysis"
-    scored = []
-
-    for vendor in state.enriched_vendors:
+    
+    # Define a wrapper to handle exceptions for each vendor
+    async def _safe_analyze(vendor):
         try:
             risk_score, reasoning, breakdown = await _analyze_risk(vendor)
-            sv = ScoredVendor(
+            return ScoredVendor(
                 vendor_data=vendor,
                 risk_score=risk_score,
                 risk_reasoning=reasoning,
                 risk_breakdown=breakdown,
             )
-            logger.info(f"[risk_analysis] Successfully scored {vendor.name} (Risk: {risk_score:.1f})")
         except Exception as e:
-            logger.warning(f"[risk_analysis] Failed for {vendor.name}, applying heuristic fallback: {e}", exc_info=True)
+            logger.warning(f"[risk_analysis] Failed for {vendor.name}, applying heuristic fallback: {e}")
             fallback_score = _heuristic_risk_score(vendor)
-            sv = ScoredVendor(
+            return ScoredVendor(
                 vendor_data=vendor,
                 risk_score=fallback_score,
                 risk_reasoning="Heuristic fallback due to LLM error.",
                 risk_breakdown={},
             )
-        scored.append(sv)
 
-    state.scored_vendors = scored
-    logger.info(f"[risk_analysis] Scored risk for {len(scored)} vendors.")
+    tasks = [_safe_analyze(vendor) for vendor in state.enriched_vendors]
+    state.scored_vendors = await asyncio.gather(*tasks)
+    
+    logger.info(f"[risk_analysis] Scored risk for {len(state.scored_vendors)} vendors.")
     return state
 
 
