@@ -59,6 +59,12 @@ async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWork
 
 async def _analyze_risk(vendor: VendorData):
     """Call Groq LLM to reason about vendor risk."""
+    revenue_line = (
+        f"Annual revenue: ${vendor.annual_revenue_usd:,.0f} USD"
+        if vendor.annual_revenue_usd
+        else "Annual revenue: Unknown"
+    )
+
     user_prompt = (
         f"Vendor: {vendor.name}\n"
         f"Category: {vendor.category}\n"
@@ -68,7 +74,7 @@ async def _analyze_risk(vendor: VendorData):
         f"Negative news mentions: {vendor.negative_news_mentions}\n"
         f"Compliance issues: {vendor.compliance_issues}\n"
         f"Publicly traded: {vendor.is_publicly_traded}\n"
-        f"Annual revenue: ${vendor.annual_revenue_usd:,.0f} USD\n" if vendor.annual_revenue_usd else "Annual revenue: Unknown\n"
+        f"{revenue_line}\n"
         f"\nProvide risk assessment as JSON."
     )
 
