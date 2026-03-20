@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     app_name: str = "Smart Procurement Platform"
     app_version: str = "1.0.0"
     debug: bool = False
-    secret_key: str = "change-me-in-production"
+    secret_key: str
 
     # Database (for user management only)
     database_url: str = "postgresql+asyncpg://postgres:root@localhost:5432/smart_procurement"

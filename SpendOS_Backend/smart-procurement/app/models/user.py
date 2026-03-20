@@ -3,7 +3,7 @@ User SQLAlchemy model — stores registered user accounts.
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime
 from app.database import Base
 
@@ -15,4 +15,4 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     full_name = Column(String, nullable=False)
     hashed_password = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))

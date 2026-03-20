@@ -3,7 +3,7 @@ ProcurementTask SQLAlchemy model — stores status and result of async backgroun
 """
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import Column, String, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -16,4 +16,4 @@ class ProcurementTask(Base):
     user_id = Column(String, nullable=False, index=True)
     status = Column(String, nullable=False, default="pending")
     result = Column(JSONB, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
