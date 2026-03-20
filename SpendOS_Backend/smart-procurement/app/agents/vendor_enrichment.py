@@ -46,15 +46,19 @@ async def vendor_enrichment_node(state: ProcurementWorkflowState) -> Procurement
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
 async def _enrich_vendor(vendor: VendorData) -> VendorData:
     """Call Groq LLM to enrich a single vendor with risk signals."""
+    revenue_line = (
+        f"- Annual revenue: ${vendor.annual_revenue_usd:,.0f} USD"
+        if vendor.annual_revenue_usd
+        else "- Annual revenue: Unknown"
+    )
+
     user_prompt = (
         f"Vendor Profile:\n"
         f"- Name: {vendor.name}\n"
         f"- Category: {vendor.category}\n"
         f"- Country: {vendor.country or 'Unknown'}\n"
         f"- Years in business: {vendor.years_in_business or 'Unknown'}\n"
-        f"- Annual revenue: ${vendor.annual_revenue_usd:,.0f}" 
-        f" USD" if vendor.annual_revenue_usd else "- Annual revenue: Unknown"
-        f"\n"
+        f"{revenue_line}\n"
         f"- Publicly traded: {vendor.is_publicly_traded}\n"
         f"- Employee count: {vendor.employee_count or 'Unknown'}\n"
         f"- Certifications: {', '.join(vendor.certifications) if vendor.certifications else 'None'}\n"
