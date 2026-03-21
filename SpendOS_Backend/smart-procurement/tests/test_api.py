@@ -141,6 +141,7 @@ class TestProcurement:
         # Mock the ARQ pool that the endpoint uses to enqueue jobs
         mock_pool = AsyncMock()
         mock_pool.enqueue_job = AsyncMock(return_value=None)
+        mock_pool.get = AsyncMock(return_value=None)
         app.state.arq_pool = mock_pool
 
         resp = await authenticated_client.post(
@@ -176,6 +177,7 @@ class TestProcurement:
         # Mock ARQ pool for the analyze call
         mock_pool = AsyncMock()
         mock_pool.enqueue_job = AsyncMock(return_value=None)
+        mock_pool.get = AsyncMock(return_value=None)
         app.state.arq_pool = mock_pool
 
         # Create a task
