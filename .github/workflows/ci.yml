@@ -13,6 +13,15 @@ jobs:
       matrix:
         python-version: ["3.10", "3.11"]
     services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
       postgres:
         image: postgres:15
         env:
@@ -43,6 +52,8 @@ jobs:
       - name: Run tests
         env:
           DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/spendos_test
+          REDIS_URL: redis://localhost:6379/0
+          SECRET_KEY: test_secret_key_for_ci_pipeline
         run: |
           cd SpendOS_Backend/smart-procurement
           pytest -v --cov
