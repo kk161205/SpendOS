@@ -1,0 +1,49 @@
+databases:
+  - name: spendos-db
+    databaseName: spendos
+    user: spendos_user
+    plan: free
+
+services:
+  - type: redis
+    name: spendos-redis
+    plan: free
+
+  - type: web
+    name: spendos-api
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "cd SpendOS_Backend/smart-procurement && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: spendos-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: spendos-redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+
+  - type: worker
+    name: spendos-worker
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "cd SpendOS_Backend/smart-procurement && python run_worker.py"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: spendos-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: spendos-redis
+          property: connectionString
+      - key: SECRET_KEY
+        fromService:
+          type: web
+          name: spendos-api
+          envVarKey: SECRET_KEY
