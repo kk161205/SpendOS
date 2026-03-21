@@ -3,7 +3,7 @@
 import asyncio
 import json
 import logging
-from app.graph.state import ProcurementWorkflowState, VendorData
+from app.graph.state import ProcurementWorkflowState, VendorData, ScoredVendor
 from app.llm.groq_client import invoke_llm
 from app.llm.model_router import WorkflowNode, get_model_for_node
 
@@ -26,27 +26,28 @@ reliability based on their profile. Return ONLY valid JSON:
 
 async def reliability_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
     """
-    Compute reliability scores and attach to existing ScoredVendor objects in parallel.
+    Compute reliability scores and attach to new ScoredVendor objects in parallel.
     """
     state.current_node = "reliability_analysis"
 
-    async def _safe_analyze(sv):
+    async def _safe_analyze(vendor: VendorData):
+        sv = ScoredVendor(vendor_data=vendor)
         try:
             rel_score, reasoning, breakdown = await _analyze_reliability(
-                sv.vendor_data, state.user_requirements
+                vendor, state.user_requirements
             )
             sv.reliability_score = rel_score
             sv.reliability_reasoning = reasoning
             sv.reliability_breakdown = breakdown
-            logger.info(f"[reliability_analysis] Successfully scored {sv.vendor_data.name} (Reliability: {rel_score:.1f})")
+            logger.info(f"[reliability_analysis] Successfully scored {vendor.name} (Reliability: {rel_score:.1f})")
         except Exception as e:
-            logger.warning(f"[reliability_analysis] Failed for {sv.vendor_data.name}, applying heuristic fallback: {e}")
-            sv.reliability_score = _heuristic_reliability_score(sv.vendor_data)
+            logger.warning(f"[reliability_analysis] Failed for {vendor.name}, applying heuristic fallback: {e}")
+            sv.reliability_score = _heuristic_reliability_score(vendor)
             sv.reliability_reasoning = "Heuristic fallback due to LLM error."
             sv.reliability_breakdown = {}
         return sv
 
-    tasks = [_safe_analyze(sv) for sv in state.scored_vendors]
+    tasks = [_safe_analyze(v) for v in state.enriched_vendors]
     state.scored_vendors = list(await asyncio.gather(*tasks))
 
     logger.info(f"[reliability_analysis] Completed for {len(state.scored_vendors)} vendors.")
