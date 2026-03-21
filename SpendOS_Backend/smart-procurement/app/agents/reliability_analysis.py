@@ -1,5 +1,6 @@
 """Reliability Analysis Node for vendor scoring (0-100)."""
 
+import asyncio
 import json
 import logging
 from app.graph.state import ProcurementWorkflowState, VendorData
