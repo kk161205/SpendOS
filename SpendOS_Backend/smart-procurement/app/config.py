@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Database (for user management only)
     database_url: str = "postgresql+asyncpg://postgres:root@localhost:5432/smart_procurement"
 
+    # Redis (ARQ task queue broker)
+    redis_url: str = "redis://localhost:6379"
+
 
     # Groq API Key
     groq_api_key: str = ""

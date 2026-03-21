@@ -6,11 +6,10 @@ Tests health, auth, and procurement endpoints.
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 import time
 
 from app.main import app
-from app.graph.state import ProcurementWorkflowState, ScoredVendor, VendorData
 
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
@@ -131,62 +130,71 @@ class TestAuth:
 # ── Procurement ────────────────────────────────────────────────────────────────
 
 class TestProcurement:
-    def _mock_workflow_state(self):
-        sv = ScoredVendor(
-            vendor_data=VendorData(
-                vendor_id="v1",
-                name="Best Vendor Inc",
-                category="electronics",
-                country="Germany",
-                price_per_unit_usd=45.0,
-            ),
-            risk_score=25.0,
-            reliability_score=80.0,
-            cost_score=90.0,
-            final_score=78.0,
-            rank=1,
-            risk_reasoning="Low risk due to strong financials.",
-            reliability_reasoning="Highly reliable with strong track record.",
+    @pytest.mark.asyncio(scope="session")
+    async def test_procurement_analyze_enqueues_arq_job(self, authenticated_client):
+        """Verify that /analyze creates a task and enqueues an ARQ job."""
+        # Mock the ARQ pool that the endpoint uses to enqueue jobs
+        mock_pool = AsyncMock()
+        mock_pool.enqueue_job = AsyncMock(return_value=None)
+        app.state.arq_pool = mock_pool
+
+        resp = await authenticated_client.post(
+            "/api/procurement/analyze",
+            json={
+                "product_name": "Industrial Sensor",
+                "product_category": "electronics",
+                "quantity": 500,
+                "budget_usd": 50000,
+                "scoring_weights": {
+                    "cost_weight": 0.35,
+                    "reliability_weight": 0.40,
+                    "risk_weight": 0.25,
+                },
+            },
         )
-        return ProcurementWorkflowState(
-            ranked_vendors=[sv],
-            ai_explanation="Best Vendor Inc is the recommended vendor based on analysis.",
-        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "pending"
+        assert "task_id" in data
+
+        # Verify the ARQ job was enqueued with correct function name
+        mock_pool.enqueue_job.assert_called_once()
+        call_args = mock_pool.enqueue_job.call_args
+        assert call_args[0][0] == "run_procurement_task"  # function name
+        assert call_args[1]["task_id"] == data["task_id"]
+        assert call_args[1]["payload"]["product_name"] == "Industrial Sensor"
+        assert call_args[1]["user_id"] is not None
 
     @pytest.mark.asyncio(scope="session")
-    async def test_procurement_analyze_returns_results(self, authenticated_client):
-        mock_state = self._mock_workflow_state()
+    async def test_procurement_status_returns_pending_task(self, authenticated_client):
+        """Verify that /status returns the correct status for a pending task."""
+        # Mock ARQ pool for the analyze call
+        mock_pool = AsyncMock()
+        mock_pool.enqueue_job = AsyncMock(return_value=None)
+        app.state.arq_pool = mock_pool
 
-        with patch(
-            "app.api.procurement_routes.run_procurement_workflow",
-            new_callable=AsyncMock,
-            return_value=mock_state,
-        ):
-            resp = await authenticated_client.post(
-                "/api/procurement/analyze",
-                json={
-                    "product_name": "Industrial Sensor",
-                    "product_category": "electronics",
-                    "quantity": 500,
-                    "budget_usd": 50000,
-                    "scoring_weights": {
-                        "cost_weight": 0.35,
-                        "reliability_weight": 0.40,
-                        "risk_weight": 0.25,
-                    },
+        # Create a task
+        resp = await authenticated_client.post(
+            "/api/procurement/analyze",
+            json={
+                "product_name": "Status Check Test",
+                "product_category": "test",
+                "quantity": 1,
+                "scoring_weights": {
+                    "cost_weight": 0.35,
+                    "reliability_weight": 0.40,
+                    "risk_weight": 0.25,
                 },
-            )
-            assert resp.status_code == 200
-            data = resp.json()
-            assert data["status"] == "pending"
-            task_id = data["task_id"]
-            
-            # Follow-up: check status (should be completed as background tasks run sync in these tests)
-            status_resp = await authenticated_client.get(f"/api/procurement/status/{task_id}")
-            assert status_resp.status_code == 200
-            status_data = status_resp.json()
-            assert status_data["status"] == "completed"
-            assert status_data["result"]["ranked_vendors"][0]["vendor_name"] == "Best Vendor Inc"
+            },
+        )
+        task_id = resp.json()["task_id"]
+
+        # Check status — should be pending since worker hasn't processed it
+        status_resp = await authenticated_client.get(f"/api/procurement/status/{task_id}")
+        assert status_resp.status_code == 200
+        status_data = status_resp.json()
+        assert status_data["status"] == "pending"
+        assert status_data["result"] is None
 
     @pytest.mark.asyncio(scope="session")
     async def test_invalid_weights_rejected(self, authenticated_client):

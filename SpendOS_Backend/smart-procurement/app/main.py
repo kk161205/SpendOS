@@ -7,6 +7,8 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+from arq import create_pool
+from arq.connections import RedisSettings
 
 from app.config import get_settings
 from app.database import init_db
@@ -27,7 +29,11 @@ limiter = Limiter(key_func=get_remote_address)
 async def lifespan(app: FastAPI):
     logger.info("Starting Smart Procurement Platform...")
     await init_db()
+    logger.info("Connecting to Redis for ARQ task queue...")
+    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+    logger.info("ARQ Redis pool ready.")
     yield
+    await app.state.arq_pool.close()
     logger.info("Shutting down.")
 
 
