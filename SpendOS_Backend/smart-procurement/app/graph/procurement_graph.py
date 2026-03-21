@@ -9,7 +9,20 @@ Pipeline:
 
 import logging
 import copy
+import threading
 from langgraph.graph import StateGraph, END
+
+_compiled_graph = None
+_graph_lock = threading.Lock()
+
+def get_procurement_graph():
+    """Return the cached compiled LangGraph, building it thread-safely if needed."""
+    global _compiled_graph
+    if _compiled_graph is None:
+        with _graph_lock:
+            if _compiled_graph is None:
+                _compiled_graph = build_procurement_graph()
+    return _compiled_graph
 from app.graph.state import ProcurementWorkflowState, UserRequirements
 from app.agents.vendor_discovery import vendor_discovery_node
 from app.agents.vendor_enrichment import vendor_enrichment_node
@@ -125,7 +138,7 @@ async def run_procurement_workflow(requirements: UserRequirements) -> Procuremen
     Returns:
         Completed ProcurementWorkflowState with ranked vendors and explanation.
     """
-    graph = build_procurement_graph()
+    graph = get_procurement_graph()
 
     initial_state = ProcurementWorkflowState(user_requirements=requirements)
     
