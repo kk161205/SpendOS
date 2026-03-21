@@ -46,6 +46,11 @@ async def authenticated_client(client: AsyncClient):
     token_with_prefix = resp.cookies.get("access_token")
     if token_with_prefix:
         client.headers.update({"Authorization": token_with_prefix.strip('"')})
+        
+    # Extracted from the new CSRF process, update client headers to circumvent the 403 Forbidden CSRF protection
+    csrf_cookie = resp.cookies.get("csrf_token")
+    if csrf_cookie:
+        client.headers.update({"X-CSRF-Token": csrf_cookie.strip('"')})
     
     return client
 

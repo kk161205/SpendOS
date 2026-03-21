@@ -8,7 +8,21 @@ Pipeline:
 """
 
 import logging
+import copy
+import threading
 from langgraph.graph import StateGraph, END
+
+_compiled_graph = None
+_graph_lock = threading.Lock()
+
+def get_procurement_graph():
+    """Return the cached compiled LangGraph, building it thread-safely if needed."""
+    global _compiled_graph
+    if _compiled_graph is None:
+        with _graph_lock:
+            if _compiled_graph is None:
+                _compiled_graph = build_procurement_graph()
+    return _compiled_graph
 from app.graph.state import ProcurementWorkflowState, UserRequirements
 from app.agents.vendor_discovery import vendor_discovery_node
 from app.agents.vendor_enrichment import vendor_enrichment_node
@@ -46,8 +60,9 @@ def build_procurement_graph() -> StateGraph:
     # Register all nodes
     graph.add_node("vendor_discovery", _wrap(vendor_discovery_node))
     graph.add_node("vendor_enrichment", _wrap(vendor_enrichment_node))
-    graph.add_node("risk_analysis", _wrap(risk_analysis_node))
-    graph.add_node("reliability_analysis", _wrap(reliability_analysis_node))
+    graph.add_node("risk_analysis", _wrap(risk_analysis_node, output_key="risk_state"))
+    graph.add_node("reliability_analysis", _wrap(reliability_analysis_node, output_key="rel_state"))
+    graph.add_node("merge_analyses", merge_analyses_node)
     graph.add_node("cost_normalization", _wrap(cost_normalization_node))
     graph.add_node("scoring", _wrap(scoring_node))
     graph.add_node("ranking", _wrap(ranking_node))
@@ -58,9 +73,16 @@ def build_procurement_graph() -> StateGraph:
 
     # Sequential edges
     graph.add_edge("vendor_discovery", "vendor_enrichment")
+    
+    # Fan out to parallel analyses
     graph.add_edge("vendor_enrichment", "risk_analysis")
-    graph.add_edge("risk_analysis", "reliability_analysis")
-    graph.add_edge("reliability_analysis", "cost_normalization")
+    graph.add_edge("vendor_enrichment", "reliability_analysis")
+    
+    # Fan in to merge node
+    graph.add_edge("risk_analysis", "merge_analyses")
+    graph.add_edge("reliability_analysis", "merge_analyses")
+    
+    graph.add_edge("merge_analyses", "cost_normalization")
     graph.add_edge("cost_normalization", "scoring")
     graph.add_edge("scoring", "ranking")
     graph.add_edge("ranking", "explanation")
@@ -69,18 +91,41 @@ def build_procurement_graph() -> StateGraph:
     return graph.compile()
 
 
-def _wrap(node_fn):
+def _wrap(node_fn, output_key="_state"):
     """
     Adapter: converts dict state ↔ ProcurementWorkflowState dataclass.
-    LangGraph passes/returns dicts; our agents use the typed dataclass.
+    Uses deepcopy to prevent parallel nodes from mutating shared state.
     """
     async def wrapped(state_dict: dict) -> dict:
         state = state_dict.get("_state")
         if state is None:
             state = ProcurementWorkflowState()
-        result = await node_fn(state)
-        return {"_state": result}
+        
+        # Deepcopy to avoid parallel shared state mutation conflicts
+        state_copy = copy.deepcopy(state)
+        result = await node_fn(state_copy)
+        
+        return {output_key: result}
     return wrapped
+
+async def merge_analyses_node(state_dict: dict) -> dict:
+    """Merges output from parallel risk and reliability nodes."""
+    risk_state = state_dict.get("risk_state")
+    rel_state = state_dict.get("rel_state")
+    
+    if risk_state and rel_state:
+        merged_state = risk_state  # Base state
+        for risk_sv in merged_state.scored_vendors:
+            rel_sv = next((sv for sv in rel_state.scored_vendors 
+                           if sv.vendor_data.vendor_id == risk_sv.vendor_data.vendor_id), None)
+            if rel_sv:
+                risk_sv.reliability_score = rel_sv.reliability_score
+                risk_sv.reliability_reasoning = rel_sv.reliability_reasoning
+                risk_sv.reliability_breakdown = rel_sv.reliability_breakdown
+        return {"_state": merged_state}
+    
+    # Fallback if one failed or during testing
+    return {"_state": risk_state or rel_state}
 
 
 async def run_procurement_workflow(requirements: UserRequirements) -> ProcurementWorkflowState:
@@ -93,7 +138,7 @@ async def run_procurement_workflow(requirements: UserRequirements) -> Procuremen
     Returns:
         Completed ProcurementWorkflowState with ranked vendors and explanation.
     """
-    graph = build_procurement_graph()
+    graph = get_procurement_graph()
 
     initial_state = ProcurementWorkflowState(user_requirements=requirements)
     

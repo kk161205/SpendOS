@@ -99,3 +99,7 @@ class ProcurementHistorySessionResponse(BaseModel):
     category: str = "General"
     status: str
     results: Optional[dict] = None  # Using dict since we construct it manually
+
+class ProcurementHistoryPaginatedResponse(BaseModel):
+    total: int
+    items: List[ProcurementHistorySessionResponse]
