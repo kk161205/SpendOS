@@ -1,5 +1,6 @@
 """Vendor Enrichment Node for risk signal estimation."""
 
+import asyncio
 import json
 import logging
 from app.graph.state import ProcurementWorkflowState, VendorData
