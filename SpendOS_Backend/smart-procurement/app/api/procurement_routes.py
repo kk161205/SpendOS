@@ -15,6 +15,7 @@ from app.schemas.procurement_schema import (
     TaskAcceptedResponse,
     TaskStatusResponse,
     ProcurementHistorySessionResponse,
+    ProcurementHistoryPaginatedResponse,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,8 +84,10 @@ async def get_task_status(
     )
 
 
-@router.get("/history", response_model=list[ProcurementHistorySessionResponse])
+@router.get("/history", response_model=ProcurementHistoryPaginatedResponse)
 async def get_procurement_history(
+    limit: int = 10,
+    offset: int = 0,
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -92,12 +95,20 @@ async def get_procurement_history(
     Get all past procurement sessions with their top vendors for the current user.
     """
     from sqlalchemy.orm import selectinload
+    from sqlalchemy import func
+
+    count_stmt = select(func.count(ProcurementSession.id)).where(
+        ProcurementSession.user_id == current_user["user_id"]
+    )
+    total_count = await db.scalar(count_stmt)
 
     result = await db.execute(
         select(ProcurementSession)
         .where(ProcurementSession.user_id == current_user["user_id"])
         .order_by(ProcurementSession.created_at.desc())
         .options(selectinload(ProcurementSession.vendor_results))
+        .offset(offset)
+        .limit(limit)
     )
     sessions = result.scalars().all()
 
@@ -136,4 +147,4 @@ async def get_procurement_history(
             results=results_obj,
         ))
 
-    return response
+    return ProcurementHistoryPaginatedResponse(total=total_count, items=response)
