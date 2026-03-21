@@ -1,5 +1,7 @@
 import logging
 import uuid
+import hashlib
+import json
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -21,6 +23,18 @@ from app.schemas.procurement_schema import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/procurement", tags=["Procurement"])
 
+def generate_procurement_hash(payload: ProcurementRequestSchema) -> str:
+    """Generate a deterministic sha256 hash representing unique AI parameters."""
+    data_to_hash = {
+        "product": payload.product_name.lower().strip(),
+        "category": payload.product_category.lower().strip(),
+        "budget": payload.budget_usd,
+        "constraints": payload.scoring_weights.model_dump()
+    }
+    hasher = hashlib.sha256()
+    hasher.update(json.dumps(data_to_hash, sort_keys=True).encode("utf-8"))
+    return f"procurement_cache:{hasher.hexdigest()}"
+
 
 @router.post("/analyze", response_model=TaskAcceptedResponse)
 async def analyze_procurement(
@@ -40,13 +54,31 @@ async def analyze_procurement(
     logger.debug(f"[/analyze] Payload: {payload.model_dump()}")
 
     request_id = str(uuid.uuid4())
+    arq_pool = request.app.state.arq_pool
 
+    # Caching Layer Check
+    cache_key = generate_procurement_hash(payload)
+    cached_result_bytes = await arq_pool.get(cache_key)
+
+    if cached_result_bytes:
+        logger.info(f"[/analyze] CACHE HIT for '{payload.product_name}'. Bypassing background worker.")
+        cached_result = json.loads(cached_result_bytes.decode("utf-8"))
+        cached_result["request_id"] = request_id  # Emulate unique request structure
+        
+        # Deposit directly as "completed" to save cost/latency
+        task = ProcurementTask(id=request_id, user_id=current_user["user_id"], status="completed", result=cached_result)
+        db.add(task)
+        await db.commit()
+        
+        # The frontend still receives "pending" to emulate async resolution polling gracefully
+        return TaskAcceptedResponse(task_id=request_id, status="pending")
+
+    # Cache Miss -> Queue to worker
     task = ProcurementTask(id=request_id, user_id=current_user["user_id"], status="pending")
     db.add(task)
     await db.commit()
 
     logger.info(f"[/analyze] Created ProcurementTask with ID: {request_id}. Enqueuing to ARQ.")
-    arq_pool = request.app.state.arq_pool
     await arq_pool.enqueue_job(
         "run_procurement_task",
         task_id=request_id,
