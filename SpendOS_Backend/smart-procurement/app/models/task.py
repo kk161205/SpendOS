@@ -4,8 +4,7 @@ ProcurementTask SQLAlchemy model — stores status and result of async backgroun
 
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import Column, String, DateTime, JSON
 
 from app.database import Base
 
@@ -15,5 +14,5 @@ class ProcurementTask(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False, index=True)
     status = Column(String, nullable=False, default="pending")
-    result = Column(JSONB, nullable=True)
+    result = Column(JSON, nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
