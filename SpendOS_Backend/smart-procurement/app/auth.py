@@ -43,6 +43,7 @@ async def get_current_user(request: Request) -> dict:
     
     # 1. Try Cookie
     token = request.cookies.get("access_token")
+    is_cookie_auth = bool(token)
     
     # 2. Try Authorization Header
     if not token:
@@ -52,6 +53,17 @@ async def get_current_user(request: Request) -> dict:
 
     if not token:
         raise credentials_exception
+
+    # Double-submit CSRF protection
+    if is_cookie_auth:
+        csrf_cookie = request.cookies.get("csrf_token")
+        csrf_header = request.headers.get("X-CSRF-Token")
+        
+        if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="CSRF token validation failed"
+            )
 
     # Handle Bearer prefix
     if token.startswith("Bearer "):

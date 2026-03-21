@@ -4,6 +4,7 @@ POST /api/auth/register — register a new user
 POST /api/auth/token    — obtain a JWT access token
 """
 
+import secrets
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field, field_validator
@@ -91,6 +92,7 @@ async def login(
     # for cookies to work across different domains.
     cookie_secure = not settings.debug
     cookie_samesite = "none" if not settings.debug else "lax"
+    csrf_token = secrets.token_urlsafe(32)
     
     response.set_cookie(
         key="access_token",
@@ -101,11 +103,21 @@ async def login(
         max_age=1440 * 60, # 24 hours
     )
 
+    response.set_cookie(
+        key="csrf_token",
+        value=csrf_token,
+        httponly=False,  # Frontend JS must read this to send as X-CSRF-Token
+        samesite=cookie_samesite,
+        secure=cookie_secure,
+        max_age=1440 * 60,
+    )
+
     return {"user": {"email": user.email, "full_name": user.full_name}}
 
 
 @router.post("/logout")
 async def logout(response: Response):
-    """Clear the HTTPOnly cookie."""
+    """Clear auth and CSRF cookies."""
     response.delete_cookie("access_token")
+    response.delete_cookie("csrf_token")
     return {"message": "Successfully logged out"}
