@@ -1,0 +1,70 @@
+import re
+import html
+
+def sanitize_for_llm(text: str | None) -> str | None:
+    """
+    Strips dangerous characters, markdown blocks, and known prompt injection phrases 
+    from user input before passing it to LLM processing.
+    """
+    if text is None:
+        return None
+        
+    original_text = str(text)
+    
+    # 1. Unescape HTML to ensure we don't fall for obfuscated injections
+    clean_text = html.unescape(original_text)
+    
+    # 2. Strip Markdown code blocks (```...```) and inline code (`...`)
+    # Attackers often use fences to break out of template strings.
+    clean_text = re.sub(r'```.*?```', '', clean_text, flags=re.DOTALL)
+    clean_text = re.sub(r'`.*?`', '', clean_text)
+    
+    # 3. Strip suspicious prompt engineering instructions
+    # We use a case-insensitive match for common phrases
+    suspicious_patterns = [
+        r"ignore previous instructions",
+        r"ignore all previous instructions",
+        r"forget previous instructions",
+        r"system prompt",
+        r"you are now a",
+        r"override instructions",
+        r"bypass rules",
+        r"do not follow",
+        r"ignore rules"
+    ]
+    
+    for pattern in suspicious_patterns:
+        clean_text = re.sub(pattern, "", clean_text, flags=re.IGNORECASE)
+        
+    # 4. Remove excessive consecutive newlines and spaces that might be used to flush the context window
+    clean_text = re.sub(r'\n{3,}', '\n\n', clean_text)
+    clean_text = re.sub(r' {4,}', '   ', clean_text)
+    
+    # 5. Remove invisible control characters (except newline, tab)
+    clean_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', clean_text)
+    
+    return clean_text.strip()
+
+
+def clean_llm_output(text: str) -> str:
+    """
+    Unified utility to strip markdown fences (```json ... ```) 
+    and extra whitespace from LLM string outputs.
+    """
+    if not text:
+        return ""
+        
+    clean = text.strip()
+    
+    # Handle markdown code blocks
+    if clean.startswith("```"):
+        # Find the first newline to skip the language identifier (e.g. ```json)
+        first_newline = clean.find("\n")
+        if first_newline != -1:
+            clean = clean[first_newline + 1:]
+        
+        # Remove closing fence if it exists
+        if clean.endswith("```"):
+            clean = clean[:-3]
+            
+    return clean.strip()

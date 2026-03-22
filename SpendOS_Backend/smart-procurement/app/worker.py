@@ -48,6 +48,10 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 task.status = "processing"
                 await db.commit()
                 logger.info(f"[arq_worker] Task {task_id} marked as processing")
+                
+                # Notify SSE subscribers
+                import json
+                await ctx["redis"].publish(f"task_updates:{task_id}", json.dumps({"status": "processing"}))
 
             # Build requirements object from serialized payload
             requirements = UserRequirements(
@@ -153,6 +157,13 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
             if task_to_update:
                 task_to_update.status = "completed"
                 task_to_update.result = final_result
+                
+                # Notify SSE subscribers
+                import json
+                await ctx["redis"].publish(f"task_updates:{task_id}", json.dumps({
+                    "status": "completed",
+                    "result": final_result
+                }))
 
             await db.commit()
             logger.info(f"[arq_worker] Successfully finished task {task_id}")
@@ -165,6 +176,13 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 task.status = "failed"
                 task.result = {"error": str(e)}
                 await db.commit()
+
+                # Notify SSE subscribers
+                import json
+                await ctx["redis"].publish(f"task_updates:{task_id}", json.dumps({
+                    "status": "failed",
+                    "error": str(e)
+                }))
             raise  # Re-raise so ARQ can track the failure and trigger retries
 
 

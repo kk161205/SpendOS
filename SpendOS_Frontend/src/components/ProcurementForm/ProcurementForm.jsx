@@ -35,10 +35,16 @@ export default function ProcurementForm() {
   const pollIntervalRef = useRef(null);
   const progressIntervalRef = useRef(null);
 
-  // cleanup intervals on unmount
+  // cleanup on unmount
   useEffect(() => {
     return () => {
-      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (pollIntervalRef.current) {
+        if (typeof pollIntervalRef.current.close === 'function') {
+          pollIntervalRef.current.close();
+        } else {
+          clearInterval(pollIntervalRef.current);
+        }
+      }
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
   }, []);
@@ -100,13 +106,21 @@ export default function ProcurementForm() {
 
       const { task_id } = await procurementService.analyze(payload);
       
-      pollIntervalRef.current = setInterval(async () => {
+      const eventSource = procurementService.getAnalysisEventSource(task_id);
+      pollIntervalRef.current = eventSource;
+
+      eventSource.onmessage = (event) => {
         try {
-          const statusData = await procurementService.getAnalysisStatus(task_id);
+          const statusData = JSON.parse(event.data);
+          
+          if (statusData.error) {
+            throw new Error(statusData.error);
+          }
+
           setPollingStatus(statusData.status);
           
           if (statusData.status === 'completed') {
-            clearInterval(pollIntervalRef.current);
+            eventSource.close();
             clearInterval(progressIntervalRef.current);
             setProgress(100);
             
@@ -114,28 +128,46 @@ export default function ProcurementForm() {
             setTimeout(() => {
               const results = statusData.result;
               const sessionId = addSession(results);
-              navigate('/dashboard/results', { state: { session: { id: sessionId, results, product_name: payload.product_name, category: payload.product_category } } });
+              navigate('/dashboard/results', { 
+                state: { 
+                  session: { 
+                    id: sessionId, 
+                    results, 
+                    product_name: payload.product_name, 
+                    category: payload.product_category 
+                  } 
+                } 
+              });
               setIsSubmitting(false);
               setPollingStatus('');
               setProgress(0);
             }, 500);
           } else if (statusData.status === 'failed') {
-            clearInterval(pollIntervalRef.current);
+            eventSource.close();
             clearInterval(progressIntervalRef.current);
-            setError(statusData.result?.error || 'Analysis failed.');
+            setError(statusData.error || statusData.result?.error || 'Analysis failed.');
             setIsSubmitting(false);
             setPollingStatus('');
             setProgress(0);
           }
-        } catch (pollErr) {
-          clearInterval(pollIntervalRef.current);
+        } catch (err) {
+          eventSource.close();
           clearInterval(progressIntervalRef.current);
-          setError(pollErr.message || pollErr.detail || 'An error occurred while checking status.');
+          setError(err.message || 'An error occurred during real-time status tracking.');
           setIsSubmitting(false);
           setPollingStatus('');
           setProgress(0);
         }
-      }, 3000);
+      };
+
+      eventSource.onerror = () => {
+        eventSource.close();
+        clearInterval(progressIntervalRef.current);
+        setError('Lost connection to analysis server. Please check your history in a few moments.');
+        setIsSubmitting(false);
+        setPollingStatus('');
+        setProgress(0);
+      };
 
     } catch (err) {
       clearInterval(progressIntervalRef.current);

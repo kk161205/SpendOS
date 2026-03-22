@@ -6,6 +6,7 @@ import logging
 from app.graph.state import ProcurementWorkflowState, VendorData, ScoredVendor
 from app.llm.groq_client import invoke_llm
 from app.llm.model_router import WorkflowNode, get_model_for_node
+from app.utils.sanitization import clean_llm_output
 
 logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.RELIABILITY_ANALYSIS)
@@ -79,8 +80,8 @@ async def _analyze_reliability(vendor: VendorData, req) -> tuple:
         user_prompt=user_prompt,
         temperature=MODEL_CFG.temperature,
     )
-
-    clean = response.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+    # Strip markdown fences if present
+    clean = clean_llm_output(response)
     data = json.loads(clean)
 
     rel_score = max(0.0, min(100.0, float(data.get("reliability_score", 50))))

@@ -9,11 +9,14 @@ from slowapi.errors import RateLimitExceeded
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from arq import create_pool
 from arq.connections import RedisSettings
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
-from app.database import init_db
+from app.database import init_db, get_db
 from app.api.procurement_routes import router as procurement_router
 from app.api.auth_routes import router as auth_router
+from fastapi import FastAPI, Request, Depends
 
 logging.basicConfig(
     level=logging.INFO,
@@ -54,12 +57,11 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Forwarded headers (Trusted Proxy) - Mandatory for Render load balancers
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_hosts_list)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_origin_regex=r"https://.*\.vercel\.app|https://.*\.onrender\.com",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -83,10 +85,37 @@ app.include_router(procurement_router)
 
 
 @app.get("/health", tags=["Health"])
-async def health_check():
-    """Health check endpoint for monitoring and CI/CD."""
+async def health_check(
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """Deep health check endpoint for monitoring and CI/CD."""
+    health_status = "ok"
+    db_status = "connected"
+    redis_status = "connected"
+
+    # 1. Check PostgreSQL
+    try:
+        await db.execute(text("SELECT 1"))
+    except Exception as e:
+        logger.error(f"Health check: Database connection failed: {e}")
+        db_status = "error"
+        health_status = "degraded"
+
+    # 2. Check Redis (ARQ Pool)
+    try:
+        # ARQ's pool (RedisPool) has an underlying redis connection we can ping
+        # via the handle or just a simple operation.
+        await request.app.state.arq_pool.all_job_definitions()
+    except Exception as e:
+        logger.error(f"Health check: Redis connection failed: {e}")
+        redis_status = "error"
+        health_status = "degraded"
+
     return {
-        "status": "healthy",
+        "status": health_status,
+        "database": db_status,
+        "redis": redis_status,
         "service": settings.app_name,
         "version": settings.app_version,
     }

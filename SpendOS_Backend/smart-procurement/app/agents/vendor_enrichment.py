@@ -3,9 +3,10 @@
 import asyncio
 import json
 import logging
-from app.graph.state import ProcurementWorkflowState, VendorData
+from app.graph.state import ProcurementWorkflowState
 from app.llm.groq_client import invoke_llm
 from app.llm.model_router import WorkflowNode, get_model_for_node
+from app.utils.sanitization import clean_llm_output
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)
@@ -49,7 +50,7 @@ async def vendor_enrichment_node(state: ProcurementWorkflowState) -> Procurement
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
-async def _enrich_vendor(vendor: VendorData) -> VendorData:
+async def _enrich_vendor(vendor: ProcurementWorkflowState.VendorData) -> ProcurementWorkflowState.VendorData:
     """Call Groq LLM to enrich a single vendor with risk signals."""
     revenue_line = (
         f"- Annual revenue: ${vendor.annual_revenue_usd:,.0f} USD"
@@ -79,8 +80,8 @@ async def _enrich_vendor(vendor: VendorData) -> VendorData:
         user_prompt=user_prompt,
         temperature=MODEL_CFG.temperature,
     )
-
-    clean = response.strip().lstrip("```json").lstrip("```").rstrip("```").strip()
+    # Strip markdown fences if present
+    clean = clean_llm_output(response)
     data = json.loads(clean)
 
     vendor.financial_stability_score = float(data.get("financial_stability_score", 50))

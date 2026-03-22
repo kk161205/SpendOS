@@ -17,7 +17,7 @@ api.interceptors.response.use(
     // Standardize success response payload if needed
     return response;
   },
-  (error) => {
+  async (error) => {
     // Network Error or Server Unreachable
     if (!error.response) {
       console.error("API Network Error:", error.message);
@@ -30,10 +30,35 @@ api.interceptors.response.use(
 
     const { status, data } = error.response;
 
-    // Handle 401 Unauthorized globally
-    if (status === 401) {
-      console.warn("Authentication expired or invalid. Redirecting to login.");
-      // Only redirect if not already on login/register to avoid loops
+    const originalRequest = error.config;
+
+    // Handle 401 Unauthorized globally with seamless refresh flow
+    if (status === 401 && !originalRequest._retry) {
+      // Avoid refresh loop if the refresh endpoint itself returns 401
+      if (originalRequest.url.includes('/auth/refresh')) {
+        window.location.href = "/login";
+        return Promise.reject(error);
+      }
+
+      originalRequest._retry = true;
+      try {
+        // Attempt to refresh the tokens using the HttpOnly refresh cookie
+        await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+        
+        // If successful, retry the original API call
+        return api(originalRequest);
+      } catch (refreshError) {
+        console.warn("Refresh token expired or invalid. Redirecting to login.");
+        if (
+          !window.location.pathname.startsWith("/login") &&
+          !window.location.pathname.startsWith("/register")
+        ) {
+          window.location.href = "/login";
+        }
+        return Promise.reject(refreshError);
+      }
+    } else if (status === 401) {
+      // If we already retried and still got 401, redirect to login
       if (
         !window.location.pathname.startsWith("/login") &&
         !window.location.pathname.startsWith("/register")

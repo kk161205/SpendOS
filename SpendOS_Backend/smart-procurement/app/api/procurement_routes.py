@@ -1,8 +1,12 @@
+import asyncio
+import csv
+import io
 import logging
 import uuid
 import hashlib
 import json
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -116,6 +120,90 @@ async def get_task_status(
     )
 
 
+async def task_event_generator(task_id: str, user_id: str, request: Request, db_factory):
+    """
+    Subscribes to Redis Pub/Sub for a specific task and yields SSE events.
+    """
+    arq_pool = request.app.state.arq_pool
+    
+    # 1. Yield current state from DB immediately
+    async with db_factory() as db:
+        result = await db.execute(
+            select(ProcurementTask).where(
+                ProcurementTask.id == task_id,
+                ProcurementTask.user_id == user_id
+            )
+        )
+        task = result.scalar_one_or_none()
+        
+        if not task:
+            yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+            return
+            
+        yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
+        
+        if task.status in ["completed", "failed"]:
+            return
+
+    # 2. Subscribe to Redis for future updates
+    pubsub = arq_pool.pubsub()
+    await pubsub.subscribe(f"task_updates:{task_id}")
+    
+    try:
+        # We use a timeout to occasionally check if the connection is still alive
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_message=True, timeout=1.0)
+            if message:
+                data_str = message["data"]
+                if isinstance(data_str, bytes):
+                    data_str = data_str.decode("utf-8")
+                data = json.loads(data_str)
+                yield f"data: {json.dumps(data)}\n\n"
+                if data.get("status") in ["completed", "failed"]:
+                    break
+            
+            # Check if task finished while we were setting up subscription
+            # (Edge case protection)
+            async with db_factory() as db:
+                check_result = await db.execute(
+                    select(ProcurementTask.status).where(ProcurementTask.id == task_id)
+                )
+                current_status = check_result.scalar_one_or_none()
+                if current_status in ["completed", "failed"]:
+                    # Final check: did we miss the message? 
+                    # If we don't have the result yet, fetch it.
+                    final_result = await db.execute(
+                        select(ProcurementTask).where(ProcurementTask.id == task_id)
+                    )
+                    final_task = final_result.scalar_one_or_none()
+                    yield f"data: {json.dumps({'status': final_task.status, 'result': final_task.result if final_task.status == 'completed' else None})}\n\n"
+                    break
+                    
+            await asyncio.sleep(0.1) # Prevent tight loop if get_message is instant
+    except Exception as e:
+        logger.error(f"SSE stream error for task {task_id}: {e}")
+        yield f"data: {json.dumps({'error': 'Stream encountered an error'})}\n\n"
+    finally:
+        await pubsub.unsubscribe(f"task_updates:{task_id}")
+
+
+@router.get("/events/{task_id}")
+async def stream_task_events(
+    task_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    SSE endpoint to stream real-time task status updates.
+    """
+    from app.database import async_session_factory
+    
+    return StreamingResponse(
+        task_event_generator(task_id, current_user["user_id"], request, async_session_factory),
+        media_type="text/event-stream"
+    )
+
+
 @router.get("/history", response_model=ProcurementHistoryPaginatedResponse)
 async def get_procurement_history(
     limit: int = 10,
@@ -180,3 +268,108 @@ async def get_procurement_history(
         ))
 
     return ProcurementHistoryPaginatedResponse(total=total_count, items=response)
+
+
+@router.delete("/history/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_procurement_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a specific procurement session.
+    Cascades automatically to VendorResult due to SQLAlchemy relationship.
+    """
+    result = await db.execute(
+        select(ProcurementSession).where(
+            ProcurementSession.id == session_id,
+            ProcurementSession.user_id == current_user["user_id"]
+        )
+    )
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Session not found or forbidden"
+        )
+        
+    await db.delete(session)
+    await db.commit()
+    return None
+
+
+@router.get("/export/{session_id}")
+async def export_procurement_results(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Export procurement results as a CSV file.
+    Only accessible by the owner of the session.
+    """
+    from sqlalchemy.orm import selectinload
+    
+    # 1. Fetch the session and its results
+    result = await db.execute(
+        select(ProcurementSession)
+        .where(
+            ProcurementSession.id == session_id,
+            ProcurementSession.user_id == current_user["user_id"]
+        )
+        .options(selectinload(ProcurementSession.vendor_results))
+    )
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Session not found or access denied"
+        )
+    
+    # 2. Generate CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Headers - Session Metadata
+    writer.writerow(["Procurement Analysis Report"])
+    writer.writerow(["Product Name", session.product_name])
+    writer.writerow(["Category", session.category])
+    writer.writerow(["Budget (USD)", session.budget or "N/A"])
+    writer.writerow(["Date", session.created_at.strftime("%Y-%m-%d %H:%M:%S")])
+    writer.writerow([])
+    
+    # AI Explanation
+    writer.writerow(["AI Recommendation Summary"])
+    writer.writerow([session.ai_explanation or "No explanation available"])
+    writer.writerow([])
+    
+    # Vendor Results
+    writer.writerow(["Vendor List"])
+    writer.writerow(["Rank", "Vendor Name", "Final Score", "Reliability Score", "Risk Score", "Cost Score", "Reasoning"])
+    
+    # Sort vendors by rank
+    sorted_vendors = sorted(session.vendor_results, key=lambda v: v.rank)
+    for v in sorted_vendors:
+        writer.writerow([
+            v.rank,
+            v.vendor_name,
+            f"{v.final_score:.2f}",
+            f"{v.reliability_score:.2f}",
+            f"{v.risk_score:.2f}",
+            f"{v.cost_score:.2f}",
+            v.explanation or ""
+        ])
+    
+    # 3. Stream back
+    output.seek(0)
+    # Sanitize filename
+    safe_product_name = "".join([c if c.isalnum() else "_" for c in session.product_name])
+    filename = f"procurement_results_{safe_product_name}_{session_id[:8]}.csv"
+    
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
