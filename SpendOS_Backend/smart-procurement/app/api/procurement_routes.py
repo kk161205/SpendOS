@@ -2,7 +2,9 @@ import logging
 import uuid
 import hashlib
 import json
+import asyncio
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -113,6 +115,90 @@ async def get_task_status(
         task_id=task.id,
         status=task.status,
         result=task.result if task.status == "completed" else None
+    )
+
+
+async def task_event_generator(task_id: str, user_id: str, request: Request, db_factory):
+    """
+    Subscribes to Redis Pub/Sub for a specific task and yields SSE events.
+    """
+    arq_pool = request.app.state.arq_pool
+    
+    # 1. Yield current state from DB immediately
+    async with db_factory() as db:
+        result = await db.execute(
+            select(ProcurementTask).where(
+                ProcurementTask.id == task_id,
+                ProcurementTask.user_id == user_id
+            )
+        )
+        task = result.scalar_one_or_none()
+        
+        if not task:
+            yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+            return
+            
+        yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
+        
+        if task.status in ["completed", "failed"]:
+            return
+
+    # 2. Subscribe to Redis for future updates
+    pubsub = arq_pool.pubsub()
+    await pubsub.subscribe(f"task_updates:{task_id}")
+    
+    try:
+        # We use a timeout to occasionally check if the connection is still alive
+        while True:
+            message = await pubsub.get_message(ignore_subscribe_message=True, timeout=1.0)
+            if message:
+                data_str = message["data"]
+                if isinstance(data_str, bytes):
+                    data_str = data_str.decode("utf-8")
+                data = json.loads(data_str)
+                yield f"data: {json.dumps(data)}\n\n"
+                if data.get("status") in ["completed", "failed"]:
+                    break
+            
+            # Check if task finished while we were setting up subscription
+            # (Edge case protection)
+            async with db_factory() as db:
+                check_result = await db.execute(
+                    select(ProcurementTask.status).where(ProcurementTask.id == task_id)
+                )
+                current_status = check_result.scalar_one_or_none()
+                if current_status in ["completed", "failed"]:
+                    # Final check: did we miss the message? 
+                    # If we don't have the result yet, fetch it.
+                    final_result = await db.execute(
+                        select(ProcurementTask).where(ProcurementTask.id == task_id)
+                    )
+                    final_task = final_result.scalar_one_or_none()
+                    yield f"data: {json.dumps({'status': final_task.status, 'result': final_task.result if final_task.status == 'completed' else None})}\n\n"
+                    break
+                    
+            await asyncio.sleep(0.1) # Prevent tight loop if get_message is instant
+    except Exception as e:
+        logger.error(f"SSE stream error for task {task_id}: {e}")
+        yield f"data: {json.dumps({'error': 'Stream encountered an error'})}\n\n"
+    finally:
+        await pubsub.unsubscribe(f"task_updates:{task_id}")
+
+
+@router.get("/events/{task_id}")
+async def stream_task_events(
+    task_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    SSE endpoint to stream real-time task status updates.
+    """
+    from app.database import async_session_factory
+    
+    return StreamingResponse(
+        task_event_generator(task_id, current_user["user_id"], request, async_session_factory),
+        media_type="text/event-stream"
     )
 
 

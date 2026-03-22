@@ -76,12 +76,16 @@ async def get_current_user(request: Request) -> dict:
         auth_header = request.headers.get("Authorization")
         if auth_header:
             token = auth_header.strip('"')
+            
+    # 3. Try Query Parameter (Safe for EventSource/SSE where headers aren't easy)
+    if not token:
+        token = request.query_params.get("token")
 
     if not token:
         raise credentials_exception
 
-    # Double-submit CSRF protection
-    if is_cookie_auth:
+    # Double-submit CSRF protection (Skip for GET requests as they are idempotent and safe for SSE)
+    if is_cookie_auth and request.method != "GET":
         csrf_cookie = request.cookies.get("csrf_token")
         csrf_header = request.headers.get("X-CSRF-Token")
         

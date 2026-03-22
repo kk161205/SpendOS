@@ -19,5 +19,10 @@ export const procurementService = {
   async deleteSession(sessionId) {
     const response = await api.delete(`/procurement/history/${sessionId}`);
     return response.data;
+  },
+
+  getAnalysisEventSource(taskId) {
+    const url = `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api"}/procurement/events/${taskId}`;
+    return new EventSource(url, { withCredentials: true });
   }
 };
