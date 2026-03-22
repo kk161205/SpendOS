@@ -44,3 +44,27 @@ def sanitize_for_llm(text: str | None) -> str | None:
     clean_text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', clean_text)
     
     return clean_text.strip()
+
+
+def clean_llm_output(text: str) -> str:
+    """
+    Unified utility to strip markdown fences (```json ... ```) 
+    and extra whitespace from LLM string outputs.
+    """
+    if not text:
+        return ""
+        
+    clean = text.strip()
+    
+    # Handle markdown code blocks
+    if clean.startswith("```"):
+        # Find the first newline to skip the language identifier (e.g. ```json)
+        first_newline = clean.find("\n")
+        if first_newline != -1:
+            clean = clean[first_newline + 1:]
+        
+        # Remove closing fence if it exists
+        if clean.endswith("```"):
+            clean = clean[:-3]
+            
+    return clean.strip()

@@ -10,6 +10,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 from app.graph.state import ProcurementWorkflowState, VendorData
 from app.llm.groq_client import invoke_llm
 from app.llm.model_router import WorkflowNode, get_model_for_node
+from app.utils.sanitization import clean_llm_output
 from app.config import get_settings
 from app.exceptions import VendorDiscoveryError
 
@@ -177,15 +178,7 @@ async def _extract_vendors_from_results(
         logger.debug(f"[vendor_discovery] Raw LLM response (first 500 chars): {response[:500]}")
 
         # Strip markdown fences if present (e.g. ```json ... ```)
-        clean = response.strip()
-        if clean.startswith("```"):
-            # Find the end of the opening fence line
-            first_newline = clean.find("\n")
-            if first_newline != -1:
-                clean = clean[first_newline + 1:]
-            # Remove closing fence
-            if clean.endswith("```"):
-                clean = clean[:-3].strip()
+        clean = clean_llm_output(response)
 
         vendor_dicts = json.loads(clean)
 

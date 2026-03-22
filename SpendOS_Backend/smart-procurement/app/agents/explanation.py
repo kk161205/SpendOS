@@ -4,6 +4,7 @@ import logging
 from app.graph.state import ProcurementWorkflowState
 from app.llm.groq_client import invoke_llm
 from app.llm.model_router import WorkflowNode, get_model_for_node
+from app.utils.sanitization import clean_llm_output
 
 logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.EXPLANATION)
@@ -66,12 +67,13 @@ async def _generate_explanation(state: ProcurementWorkflowState) -> str:
         f"Write a professional procurement recommendation."
     )
 
-    return await invoke_llm(
+    response = await invoke_llm(
         model_name=MODEL_CFG.model_name,
         system_prompt=SYSTEM_PROMPT,
         user_prompt=user_prompt,
         temperature=MODEL_CFG.temperature,
     )
+    return clean_llm_output(response)
 
 
 def _fallback_explanation(state: ProcurementWorkflowState) -> str:
