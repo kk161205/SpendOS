@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import Optional, List
 from pydantic import BaseModel, Field, field_validator
 
+from app.utils.sanitization import sanitize_for_llm
+
 
 class ScoringWeights(BaseModel):
     """Configurable weights for the final vendor score formula."""
@@ -43,6 +45,13 @@ class ProcurementRequest(BaseModel):
         default_factory=ScoringWeights,
         description="Configurable scoring weights"
     )
+
+    @field_validator("product_name", "description", mode="before")
+    @classmethod
+    def sanitize_llm_inputs(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        return sanitize_for_llm(v)
 
 
 class VendorScoreResponse(BaseModel):
