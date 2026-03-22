@@ -3,7 +3,8 @@ import { useLocation, useNavigate, Navigate } from "react-router-dom";
 import VendorRankings from "./VendorRankings";
 import ScoreBreakdown from "./ScoreBreakdown";
 import AIExplanation from "./AIExplanation";
-import { ArrowLeft, FileText, CheckCircle, Save, Download } from "lucide-react";
+import { ArrowLeft, Download, Loader2 } from "lucide-react";
+import { procurementService } from "../../services/procurementService";
 
 export default function ResultsPage() {
   const location = useLocation();
@@ -11,6 +12,23 @@ export default function ResultsPage() {
   const session = location.state?.session;
 
   const [activeTab, setActiveTab] = useState("rankings");
+  const [isExporting, setIsExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (isExporting) return;
+    
+    setIsExporting(true);
+    try {
+      await procurementService.exportResults(session.id);
+      // Fallback notification since react-hot-toast is missing
+      console.log("Results exported successfully");
+    } catch (error) {
+      console.error("Export failed:", error);
+      alert("Failed to export results. Please check the console for details.");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // If navigated directly without session state, redirect back
   if (!session || !session.results) {
@@ -39,6 +57,24 @@ export default function ResultsPage() {
             <span>{session.category}</span>
           </p>
         </div>
+
+        <button
+          onClick={handleExport}
+          disabled={isExporting}
+          className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-brand-600 hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+        >
+          {isExporting ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Exporting...
+            </>
+          ) : (
+            <>
+              <Download className="w-4 h-4 mr-2" />
+              Download CSV
+            </>
+          )}
+        </button>
       </div>
 
       {/* Tabs Layout */}
