@@ -14,5 +14,10 @@ export const procurementService = {
   async getHistory() {
     const response = await api.get('/procurement/history');
     return response.data;
+  },
+
+  async deleteSession(sessionId) {
+    const response = await api.delete(`/procurement/history/${sessionId}`);
+    return response.data;
   }
 };

@@ -51,12 +51,20 @@ export const SessionProvider = ({ children }) => {
     return newSession.id;
   };
 
-  const deleteSession = (id) => {
-    setSessions(prev => {
-      const updated = prev.filter(s => s.id !== id);
-      if (user) saveSessions(userKey, updated);
-      return updated;
-    });
+  const deleteSession = async (id) => {
+    try {
+      if (user) {
+        await procurementService.deleteSession(id);
+      }
+      setSessions(prev => {
+        const updated = prev.filter(s => s.id !== id);
+        if (user) saveSessions(userKey, updated);
+        return updated;
+      });
+    } catch (error) {
+      console.error("Failed to delete session:", error);
+      throw error;
+    }
   };
 
   const clearCurrentSession = () => setCurrentSession(null);

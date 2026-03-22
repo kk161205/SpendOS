@@ -180,3 +180,32 @@ async def get_procurement_history(
         ))
 
     return ProcurementHistoryPaginatedResponse(total=total_count, items=response)
+
+
+@router.delete("/history/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_procurement_session(
+    session_id: str,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Delete a specific procurement session.
+    Cascades automatically to VendorResult due to SQLAlchemy relationship.
+    """
+    result = await db.execute(
+        select(ProcurementSession).where(
+            ProcurementSession.id == session_id,
+            ProcurementSession.user_id == current_user["user_id"]
+        )
+    )
+    session = result.scalar_one_or_none()
+    
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, 
+            detail="Session not found or forbidden"
+        )
+        
+    await db.delete(session)
+    await db.commit()
+    return None
