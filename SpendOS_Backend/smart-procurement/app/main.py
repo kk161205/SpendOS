@@ -54,7 +54,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Forwarded headers (Trusted Proxy) - Mandatory for Render load balancers
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_hosts_list)
 
 app.add_middleware(
     CORSMiddleware,

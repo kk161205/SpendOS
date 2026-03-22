@@ -43,6 +43,14 @@ class Settings(BaseSettings):
         """Convert comma-separated string to list of origins and normalize."""
         return [s.strip().rstrip("/") for s in self.allowed_origins.split(",") if s.strip()]
 
+    # Trusted Proxy Hosts for ProxyHeadersMiddleware
+    trusted_hosts: str = "127.0.0.1,spend-os-backend.onrender.com"
+
+    @property
+    def trusted_hosts_list(self) -> list[str]:
+        """Convert comma-separated string to list of trusted hosts."""
+        return [s.strip() for s in self.trusted_hosts.split(",") if s.strip()]
+
     # ─────────────────────────────────────────────────────────────────────────
     # LLM Model Routing (Groq)
     # Each node uses a different model to distribute token usage
