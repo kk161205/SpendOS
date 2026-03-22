@@ -1,5 +1,6 @@
 """Vendor Discovery Node using SerpAPI."""
 
+import asyncio
 import json
 import logging
 from typing import List
@@ -54,7 +55,7 @@ async def vendor_discovery_node(state: ProcurementWorkflowState) -> ProcurementW
     logger.info(f"[vendor_discovery] Searching online for: {req.product_name} in {req.product_category}")
 
     try:
-        search_results = _search_vendors_online(req)
+        search_results = await _search_vendors_online(req)
 
         if not search_results:
             logger.warning(f"[vendor_discovery] No search results found for query parameters: {req.product_name} / {req.product_category}")
@@ -73,7 +74,7 @@ async def vendor_discovery_node(state: ProcurementWorkflowState) -> ProcurementW
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)
-def _search_vendors_online(req) -> List[dict]:
+async def _search_vendors_online(req) -> List[dict]:
     """
     Use SerpAPI to search Google for vendor/supplier information.
     Returns a list of organic search result dicts.
@@ -95,7 +96,7 @@ def _search_vendors_online(req) -> List[dict]:
                 "gl": "us",
                 "hl": "en"
             })
-            results = search.get_dict()
+            results = await asyncio.to_thread(search.get_dict)
             
             # SerpAPI returns errors in the dictionary payload instead of raising HTTP exceptions
             if "error" in results:
@@ -113,7 +114,7 @@ def _search_vendors_online(req) -> List[dict]:
                     "num": 10,
                     "engine": "google"
                 })
-                broad_results = broad_search.get_dict()
+                broad_results = await asyncio.to_thread(broad_search.get_dict)
                 if "error" in broad_results:
                     logger.error(f"[vendor_discovery] SerpAPI returned an error on retry: {broad_results['error']}")
                 else:
