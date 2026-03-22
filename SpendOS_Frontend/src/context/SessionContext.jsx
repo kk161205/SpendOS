@@ -11,6 +11,9 @@ export const SessionProvider = ({ children }) => {
   const [sessions, setSessions] = useState([]);
   const [currentSession, setCurrentSession] = useState(null);
 
+  // Use email as the stable unique key (backend returns email, not user_id)
+  const userKey = user?.email || 'guest';
+
   useEffect(() => {
     const initSessions = async () => {
       if (!user) {
@@ -21,13 +24,13 @@ export const SessionProvider = ({ children }) => {
       try {
         const history = await procurementService.getHistory();
         setSessions(history);
-        saveSessions(user.user_id, history); 
+        saveSessions(userKey, history); 
       } catch {
-        setSessions(getSessions(user.user_id));
+        setSessions(getSessions(userKey));
       }
     };
     initSessions();
-  }, [user]);
+  }, [user, userKey]);
 
   const addSession = (sessionData) => {
     const newSession = {
@@ -41,7 +44,7 @@ export const SessionProvider = ({ children }) => {
     
     setSessions(prev => {
       const updated = [newSession, ...prev];
-      if (user) saveSessions(user.user_id, updated);
+      if (user) saveSessions(userKey, updated);
       return updated;
     });
     
@@ -51,7 +54,7 @@ export const SessionProvider = ({ children }) => {
   const deleteSession = (id) => {
     setSessions(prev => {
       const updated = prev.filter(s => s.id !== id);
-      if (user) saveSessions(user.user_id, updated);
+      if (user) saveSessions(userKey, updated);
       return updated;
     });
   };
