@@ -29,7 +29,8 @@ class Settings(BaseSettings):
     serp_api_key: str = ""
 
     # JWT Settings
-    access_token_expire_minutes: int = 60
+    access_token_expire_minutes: int = 15
+    refresh_token_expire_days: int = 7
     algorithm: str = "HS256"
 
     # Rate Limiting
