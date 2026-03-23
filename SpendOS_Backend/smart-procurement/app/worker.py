@@ -10,21 +10,20 @@ Features over FastAPI BackgroundTasks:
   - Horizontally scalable (run multiple workers)
 """
 
+import json
 import logging
+
 from arq.connections import RedisSettings
+from sqlalchemy import select
 
 from app.config import get_settings
-from app.database import init_db, async_session_factory
+from app.database import async_session_factory, init_db
 from app.graph.procurement_graph import run_procurement_workflow
 from app.graph.state import UserRequirements
-from app.models.task import ProcurementTask
 from app.models.procurement import ProcurementSession, VendorResult
-from app.schemas.procurement_schema import (
-    ProcurementAnalysisResponse,
-    VendorScoreResponse,
-)
-
-from sqlalchemy import select
+from app.models.task import ProcurementTask
+from app.schemas.procurement_schema import ProcurementAnalysisResponse, VendorScoreResponse
+from app.utils.cache_utils import generate_procurement_hash_from_dict
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -50,7 +49,6 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 logger.info(f"[arq_worker] Task {task_id} marked as processing")
                 
                 # Notify SSE subscribers
-                import json
                 await ctx["redis"].publish(f"task_updates:{task_id}", json.dumps({"status": "processing"}))
 
             # Build requirements object from serialized payload
@@ -108,8 +106,6 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
             ).model_dump()
 
             # --- Caching Write-Back ---
-            from app.utils.cache_utils import generate_procurement_hash_from_dict
-            import json
             cache_key = generate_procurement_hash_from_dict(payload)
             
             # Push into Redis (7 Days TTL)
@@ -151,7 +147,6 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 task_to_update.result = final_result
                 
                 # Notify SSE subscribers
-                import json
                 await ctx["redis"].publish(f"task_updates:{task_id}", json.dumps({
                     "status": "completed",
                     "result": final_result
@@ -170,7 +165,6 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 await db.commit()
 
                 # Notify SSE subscribers
-                import json
                 await ctx["redis"].publish(f"task_updates:{task_id}", json.dumps({
                     "status": "failed",
                     "error": str(e)
