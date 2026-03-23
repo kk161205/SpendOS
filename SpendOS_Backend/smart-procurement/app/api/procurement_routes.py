@@ -152,7 +152,7 @@ async def task_event_generator(task_id: str, user_id: str, request: Request, db_
                 break
 
             # Block efficiently waiting for Redis Pub/Sub. Timeout every 15s to check disconnects.
-            message = await pubsub.get_message(ignore_subscribe_message=True, timeout=15.0)
+            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
             
             if message:
                 data_str = message["data"]
