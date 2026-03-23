@@ -13,7 +13,7 @@ services:
     name: spendos-api
     env: python
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "cd SpendOS_Backend/smart-procurement && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    startCommand: "cd SpendOS_Backend/smart-procurement && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-10000}"
     envVars:
       - key: DATABASE_URL
         fromDatabase:
