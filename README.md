@@ -5,7 +5,7 @@
   
   **A modern, intelligent procurement platform powered by AI-driven insights and real-time analytics.**
   
-  [![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+  [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
   [![FastAPI](https://img.shields.io/badge/FastAPI-0.111.0-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
   [![React](https://img.shields.io/badge/React-18+-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://reactjs.org/)
   [![Vite](https://img.shields.io/badge/Vite-7.3-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
@@ -50,7 +50,7 @@ Whether you are seeking robust cost optimization or a complete audit trail of po
 - **AI/LLM Provider:** Groq
 - **Database (Auth):** SQLAlchemy with PostgreSQL/SQLite support
 - **Testing:** `pytest`, `pytest-asyncio`
-- **Language:** Python 3.9+
+- **Language:** Python 3.10+
 
 ### Frontend
 
@@ -111,10 +111,23 @@ SpendOS/
 
 Before starting, ensure your operating system has the following installed:
 
-- **Python 3.9+**: For the backend environment.
+- **Python 3.10+**: Required for modern type hinting (union types) used in the backend.
 - **Node.js 18+ & NPM**: For frontend dependency management and the Vite server.
+- **PostgreSQL 15+**: Primary database for user management and procurement sessions.
+- **Redis 6+**: Required for ARQ background tasks and real-time SSE updates.
 - **Git**: For version control.
-- _(Optional)_ **Docker**: If you intend to containerize the database or services later.
+
+### Detailed Backend Dependencies
+The following libraries are core to the SpendOS backend:
+- **FastAPI (0.111.0)**: Modern, high-performance web framework.
+- **LangGraph (0.3.34) & LangChain**: AI workflow orchestration and LLM interactions.
+- **SQLAlchemy (2.0.40) & Asyncpg**: Async database operations and PostgreSQL driver.
+- **ARQ (0.27.0)**: Redis-backed task queue for reliable background processing.
+- **PyJWT & Bcrypt**: Secure authentication and password hashing.
+- **SlowAPI**: Rate limiting for DDoS protection.
+- **Tenacity**: Advanced retry logic for resilient API integrations.
+- **Httpx**: Modern async HTTP client for external integrations.
+- **SerpAPI (GoogleSearch)**: Real-time vendor discovery via Google Search.
 
 ---
 
