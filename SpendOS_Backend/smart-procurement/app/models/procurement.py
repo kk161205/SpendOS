@@ -28,7 +28,12 @@ class ProcurementSession(Base):
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Relationship back to VendorResult
-    vendor_results = relationship("VendorResult", back_populates="session", cascade="all, delete-orphan")
+    vendor_results = relationship(
+        "VendorResult", 
+        back_populates="session", 
+        cascade="all, delete-orphan",
+        order_by="VendorResult.rank"
+    )
 
 
 class VendorResult(Base):

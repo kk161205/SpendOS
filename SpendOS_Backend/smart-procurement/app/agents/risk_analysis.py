@@ -29,7 +29,8 @@ provide a detailed risk assessment including commercial term mismatch. Return ON
 
 async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
     """
-    Compute risk scores for all enriched vendors in parallel.
+    Compute risk scores for all enriched vendors sequentially.
+    Done sequentially deliberately to avoid LLM rate limits.
     Creates ScoredVendor objects with risk data.
     """
     state.current_node = "risk_analysis"

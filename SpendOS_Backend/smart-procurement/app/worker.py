@@ -17,7 +17,7 @@ from arq.connections import RedisSettings
 from sqlalchemy import select
 
 from app.config import get_settings
-from app.database import async_session_factory, init_db
+from app.database import async_session_factory
 from app.graph.procurement_graph import run_procurement_workflow
 from app.graph.state import UserRequirements
 from app.models.procurement import ProcurementSession, VendorResult
@@ -183,9 +183,7 @@ async def startup(ctx: dict):
         level=logging.INFO,
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     )
-    logger.info("[arq_worker] Worker starting up — initializing DB...")
-
-    await init_db()
+    logger.info("[arq_worker] Worker starting up...")
 
 
 async def shutdown(ctx: dict):

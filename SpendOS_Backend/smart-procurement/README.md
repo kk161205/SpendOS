@@ -61,7 +61,11 @@ pip install -r ../../requirements-dev.txt
 
 ### 3. Database Setup
 
-This project automatically manages the database schema. Ensure your PostgreSQL instance is running, and the tables will be created when you start the API.
+Once your PostgreSQL instance is running, apply the database migrations using Alembic:
+
+```bash
+alembic upgrade head
+```
 
 ### 2. Configure Environment
 
@@ -92,7 +96,7 @@ docker run -d \
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-The database tables are auto-created on startup. Visit: http://localhost:8000/docs
+Ensure you have run migrations before starting the service. Visit: http://localhost:8000/docs
 
 ---
 

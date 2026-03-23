@@ -76,7 +76,7 @@ async def get_procurement_history(
     response = []
     for s in sessions:
         vendor_dicts = []
-        for v in sorted(s.vendor_results, key=lambda x: x.rank):
+        for v in s.vendor_results:
             vendor_dicts.append({
                 "vendor_id": v.vendor_id or v.id,
                 "vendor_name": v.vendor_name,
@@ -180,9 +180,7 @@ async def export_procurement_results(
     writer.writerow(["Vendor List"])
     writer.writerow(["Rank", "Vendor Name", "Final Score", "Reliability Score", "Risk Score", "Cost Score", "Reasoning"])
     
-    # Sort vendors by rank
-    sorted_vendors = sorted(session.vendor_results, key=lambda v: v.rank)
-    for v in sorted_vendors:
+    for v in session.vendor_results:
         writer.writerow([
             v.rank,
             v.vendor_name,

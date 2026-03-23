@@ -29,6 +29,7 @@ reliability and commercial alignment with user constraints. Return ONLY valid JS
 async def reliability_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
     """
     Compute reliability scores and attach to existing ScoredVendor objects sequentially.
+    Done sequentially deliberately to avoid LLM rate limits.
     """
     state.current_node = "reliability_analysis"
 

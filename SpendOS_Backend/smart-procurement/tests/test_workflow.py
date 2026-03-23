@@ -16,6 +16,9 @@ def sample_requirements():
         product_category="electronics",
         quantity=500,
         budget_usd=100000,
+        delivery_deadline_days=30,
+        payment_terms="Net 30",
+        shipping_destination="Chicago, IL, USA",
         cost_weight=0.35,
         reliability_weight=0.40,
         risk_weight=0.25,
@@ -23,10 +26,15 @@ def sample_requirements():
 
 @pytest.mark.asyncio
 async def test_end_to_end_sequential_workflow(sample_requirements):
-    # Mock Vendor Discovery (SerpAPI returned payload)
-    mock_discovery = [
-        {"vendor_id": "v1", "name": "PowerTech Inc", "url": "powertech.com"},
-        {"vendor_id": "v2", "name": "GlobalBatteries", "url": "gb.com"}
+    # Mock Vendor Discovery
+    mock_search_results = [
+        {"title": "Vendor 1", "link": "v1.com"},
+        {"title": "Vendor 2", "link": "v2.com"}
+    ]
+    
+    mock_extraction = [
+        VendorData(vendor_id="v1", name="PowerTech Inc", category="electronics"),
+        VendorData(vendor_id="v2", name="GlobalBatteries", category="electronics")
     ]
 
     # Mock Enrichment
@@ -47,7 +55,8 @@ async def test_end_to_end_sequential_workflow(sample_requirements):
     # Mock Explanation
     mock_explanation = "Based on custom analysis, PowerTech Inc is the best option."
 
-    with patch("app.agents.vendor_discovery._search_vendors", new_callable=AsyncMock, return_value=mock_discovery), \
+    with patch("app.agents.vendor_discovery._search_vendors_online", new_callable=AsyncMock, return_value=mock_search_results), \
+         patch("app.agents.vendor_discovery._extract_vendors_from_results", new_callable=AsyncMock, return_value=mock_extraction), \
          patch("app.agents.vendor_enrichment._enrich_vendor", new_callable=AsyncMock, side_effect=mock_enrichment_call), \
          patch("app.agents.risk_analysis._analyze_risk", new_callable=AsyncMock, side_effect=mock_risk_call), \
          patch("app.agents.reliability_analysis._analyze_reliability", new_callable=AsyncMock, side_effect=mock_reliability_call), \
@@ -63,7 +72,7 @@ async def test_end_to_end_sequential_workflow(sample_requirements):
         assert v1.vendor_data.name == "PowerTech Inc"
         assert v1.risk_score == 20.0
         assert v1.reliability_score == 85.0
-        assert v1.cost_score == 100.0  # Normalized since they all have the same mock price!
+        assert v1.cost_score == 80.0  # 100 base - 20 budget penalty
         assert v1.rank == 1
 
         assert final_state.ai_explanation == mock_explanation

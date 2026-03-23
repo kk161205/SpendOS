@@ -26,8 +26,10 @@ def _base_dict():
         "description": "High-precision temperature sensor",
         "quantity": 500,
         "budget_usd": 50000.0,
-        "required_certifications": ["ISO 9001", "CE Mark"],
+        "payment_terms": "Net 30",
         "delivery_deadline_days": 30,
+        "shipping_destination": "Chicago, IL, USA",
+        "required_certifications": ["ISO 9001", "CE Mark"],
         "scoring_weights": {
             "cost_weight": 0.35,
             "reliability_weight": 0.40,
@@ -137,6 +139,10 @@ class TestParity:
             "product_name": "Widget",
             "product_category": "General",
             "quantity": 10,
+            "budget_usd": 100.0,
+            "payment_terms": "Cash",
+            "delivery_deadline_days": 7,
+            "shipping_destination": "Local House",
             "scoring_weights": {"cost_weight": 0.35, "reliability_weight": 0.40, "risk_weight": 0.25},
         }
         schema = ProcurementRequest(**minimal)

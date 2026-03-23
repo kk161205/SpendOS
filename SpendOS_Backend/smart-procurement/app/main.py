@@ -1,73 +1,73 @@
 import logging
 from contextlib import asynccontextmanager
 
+import redis.asyncio as redis
 from arq import create_pool
 from arq.connections import RedisSettings
-from fastapi import Depends, FastAPI, Request
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.middleware.base import BaseHTTPMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from app.api.auth_routes import router as auth_router
 from app.api.procurement_routes import router as procurement_router
 from app.config import get_settings
-from app.database import get_db, init_db
+from app.database import engine
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
-)
+# ── Logging Configuration ─────────────────────────────────────────────────────
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-settings = get_settings()
 
-limiter = Limiter(key_func=get_remote_address)
-
-
+# ── Lifespan Management ────────────────────────────────────────────────────────
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting Smart Procurement Platform...")
-    logger.info("✅ Configuration validated — all required secrets are present.")
-    await init_db()
-    logger.info("Connecting to Redis for ARQ task queue...")
-    app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
-    logger.info("ARQ Redis pool ready.")
+    """
+    Handle startup and shutdown of external resources.
+    1. Initialize Redis connection pool for ARQ.
+    2. Gracefully close connections on shutdown.
+    """
+    settings = get_settings()
+    logger.info("Starting up: initializing ARQ/Redis pool...")
+    
+    # Initialize ARQ Redis pool
+    try:
+        app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
+        logger.info("ARQ/Redis pool connected.")
+    except Exception as e:
+        logger.error(f"Failed to connect to Redis/ARQ: {e}")
+        # In production, this might be a fatal error
+    
     yield
-    await app.state.arq_pool.close()
-    logger.info("Shutting down.")
+    
+    # Shutdown
+    if hasattr(app.state, "arq_pool"):
+        logger.info("Shutting down: closing ARQ/Redis pool...")
+        await app.state.arq_pool.close()
+        logger.info("Pool closed.")
 
-
+# ── App Initialization ─────────────────────────────────────────────────────────
 app = FastAPI(
-    title=settings.app_name,
-    version=settings.app_version,
-    description=(
-        "AI-powered procurement intelligence platform. "
-        "Discovers, enriches, scores and ranks vendors using LangGraph + Groq."
-    ),
+    title="Smart Procurement Platform",
+    description="Automated vendor discovery and risk analysis using LangGraph and LangChain.",
+    version="1.0.0",
     lifespan=lifespan,
-    docs_url="/docs",
-    redoc_url="/redoc",
 )
 
-# Middlewares
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+# ── Middleware ─────────────────────────────────────────────────────────────────
 
-# Forwarded headers (Trusted Proxy) - Mandatory for Render load balancers
-app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_hosts_list)
-
+# 1. CORS
+settings = get_settings()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Type", "Set-Cookie"],
 )
+
+# 2. Proxy Headers (for Render/Cloudflare)
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_hosts_list)
 
 
 # ── Global Exception Handler ───────────────────────────────────────────────────
@@ -88,45 +88,33 @@ app.include_router(procurement_router)
 @app.get("/health", tags=["Health"])
 async def health_check(
     request: Request,
-    db: AsyncSession = Depends(get_db)
 ):
-    """Deep health check endpoint for monitoring and CI/CD."""
-    health_status = "ok"
-    db_status = "connected"
-    redis_status = "connected"
-
-    # 1. Check PostgreSQL
+    """Simple health check including DB connectivity."""
+    status = {"status": "ok", "services": {"api": "up"}}
+    
+    # Test DB connection
     try:
-        await db.execute(text("SELECT 1"))
+        from sqlalchemy import text
+        from app.database import get_db
+        async for session in get_db():
+            await session.execute(text("SELECT 1"))
+            status["services"]["database"] = "up"
+            break
     except Exception as e:
         logger.error(f"Health check: Database connection failed: {e}")
-        db_status = "error"
-        health_status = "degraded"
+        status["services"]["database"] = "down"
+        status["status"] = "degraded"
 
-    # 2. Check Redis (ARQ Pool)
-    try:
-        # ARQ's pool (RedisPool) has an underlying redis connection we can ping
-        # via the handle or just a simple operation.
-        await request.app.state.arq_pool.all_job_definitions()
-    except Exception as e:
-        logger.error(f"Health check: Redis connection failed: {e}")
-        redis_status = "error"
-        health_status = "degraded"
+    return status
 
-    return {
-        "status": health_status,
-        "database": db_status,
-        "redis": redis_status,
-        "service": settings.app_name,
-        "version": settings.app_version,
-    }
-
-
-@app.get("/", tags=["Root"])
+@app.get("/", tags=["Info"])
 async def root():
     return {
-        "service": settings.app_name,
-        "version": settings.app_version,
+        "message": "Welcome to SpendOS Smart Procurement API",
         "docs": "/docs",
-        "health": "/health",
+        "health": "/health"
     }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)

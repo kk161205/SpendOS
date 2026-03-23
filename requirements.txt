@@ -7,10 +7,8 @@ python-multipart==0.0.9
 langgraph==0.3.34
 langchain-core==0.3.49
 langchain-groq==0.3.2
+langchain==0.3.18
 
-# Error Tracking
-pytest
-pytest-asyncio
 
 # Database (async only — PostgreSQL via asyncpg)
 sqlalchemy==2.0.40
@@ -41,3 +39,10 @@ redis[hiredis]==5.2.1
 
 # Database Migrations
 alembic==1.13.1
+
+# ==========================================
+# Development & Testing (install with care)
+# ==========================================
+pytest
+pytest-asyncio
+pytest-cov

@@ -9,7 +9,13 @@ from app.config import get_settings
 settings = get_settings()
 
 # Database setup
-engine = create_async_engine(settings.database_url, echo=False)
+engine = create_async_engine(
+    settings.database_url,
+    echo=False,
+    pool_size=20,
+    max_overflow=10,
+    pool_pre_ping=True
+)
 async_session_factory = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 
 Base = declarative_base()
@@ -25,10 +31,4 @@ async def get_db():
             raise
 
 
-async def init_db():
-    """Create all tables on startup."""
-    async with engine.begin() as conn:
-        from app.models.user import User  # noqa: F401
-        from app.models.task import ProcurementTask  # noqa: F401
-        from app.models.procurement import ProcurementSession, VendorResult  # noqa: F401
-        await conn.run_sync(Base.metadata.create_all)
+

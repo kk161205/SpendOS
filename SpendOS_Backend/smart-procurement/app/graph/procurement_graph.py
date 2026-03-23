@@ -37,11 +37,24 @@ from app.exceptions import VendorDiscoveryError
 logger = logging.getLogger(__name__)
 
 
-def _should_continue(state: ProcurementWorkflowState) -> str:
-    """Route to END if an error occurred, otherwise continue."""
+def _should_continue(state_dict: dict) -> str:
+    """Route to END if an error occurred or no data, otherwise continue."""
+    state: ProcurementWorkflowState = state_dict.get("_state")
+    if not state:
+        return "end"
+
     if state.error:
         logger.error(f"[graph] Workflow halted at {state.current_node}: {state.error}")
         return "end"
+        
+    if state.current_node == "vendor_discovery" and not state.vendors:
+        logger.warning("[graph] No vendors discovered. Halting workflow.")
+        return "end"
+        
+    if state.current_node == "cost_normalization" and not state.scored_vendors:
+        logger.warning("[graph] No scored vendors. Halting.")
+        return "end"
+
     return "continue"
 
 
@@ -70,14 +83,14 @@ def build_procurement_graph() -> StateGraph:
     # Set entry point
     graph.set_entry_point("vendor_discovery")
 
-    # Sequential edges
-    graph.add_edge("vendor_discovery", "vendor_enrichment")
-    graph.add_edge("vendor_enrichment", "risk_analysis")
-    graph.add_edge("risk_analysis", "reliability_analysis")
-    graph.add_edge("reliability_analysis", "cost_normalization")
-    graph.add_edge("cost_normalization", "scoring")
-    graph.add_edge("scoring", "ranking")
-    graph.add_edge("ranking", "explanation")
+    # Conditional edges using _should_continue
+    graph.add_conditional_edges("vendor_discovery", _should_continue, {"continue": "vendor_enrichment", "end": END})
+    graph.add_conditional_edges("vendor_enrichment", _should_continue, {"continue": "risk_analysis", "end": END})
+    graph.add_conditional_edges("risk_analysis", _should_continue, {"continue": "reliability_analysis", "end": END})
+    graph.add_conditional_edges("reliability_analysis", _should_continue, {"continue": "cost_normalization", "end": END})
+    graph.add_conditional_edges("cost_normalization", _should_continue, {"continue": "scoring", "end": END})
+    graph.add_conditional_edges("scoring", _should_continue, {"continue": "ranking", "end": END})
+    graph.add_conditional_edges("ranking", _should_continue, {"continue": "explanation", "end": END})
     graph.add_edge("explanation", END)
 
     return graph.compile()
