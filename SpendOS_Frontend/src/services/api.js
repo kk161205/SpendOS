@@ -11,10 +11,16 @@ const api = axios.create({
   },
 });
 
+const getCookie = (name) => {
+  const value = `; ${document.cookie}`;
+  const parts = value.split(`; ${name}=`);
+  if (parts.length === 2) return parts.pop().split(';').shift();
+};
+
 // Request interceptor to attach cross-origin CSRF token
 api.interceptors.request.use((config) => {
   if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
-    const csrfToken = localStorage.getItem('csrf_token');
+    const csrfToken = getCookie('csrf_token');
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }

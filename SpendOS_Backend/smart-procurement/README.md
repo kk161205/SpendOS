@@ -1,39 +1,22 @@
-# 🧠 AI Smart Procurement & Vendor Intelligence Platform
+# 🧠 Smart Procurement & Vendor Intelligence Platform
 
-An **AI-powered procurement intelligence system** that searches the web for real vendors, evaluates risk and reliability using LLM analysis, and ranks them using a configurable cost–risk tradeoff model.
+An **AI-powered procurement intelligence system** that leverages **LangGraph** for multi-agent reasoning, **ARQ** for asynchronous task execution, and **FastAPI** for a clean service-oriented API.
 
 ---
 
 ## 🏗 Architecture
 
 ```
-FastAPI  ←→  LangGraph Workflow  ←→  Groq LLM API
-                    ↕                       ↕
-           PostgreSQL (users, procurement_tasks, procurement_sessions, vendor_results)        SerpAPI (vendor search)
+FastAPI (API Layer)  ←→  Service Layer (Auth/Proc)  ←→  ARQ Worker (LangGraph)
+                                ↓                          ↓
+                       PostgreSQL (persistence)      Redis (task queue)
 ```
 
-> [!NOTE]
-> Database tables are automatically created on application startup. No manual migrations are required.
+### Core Components
 
-### LangGraph Pipeline
-
-```
-vendor_discovery → vendor_enrichment → risk_analysis → reliability_analysis
-    → cost_normalization → scoring → ranking → explanation
-```
-
-| Node                   | Purpose                                               |
-| ---------------------- | ----------------------------------------------------- |
-| `vendor_discovery`     | SerpAPI Google search + LLM extraction of vendor data |
-| `vendor_enrichment`    | LLM estimates financial stability, risk signals       |
-| `risk_analysis`        | LLM scores risk (0–100) with reasoning                |
-| `reliability_analysis` | LLM scores reliability (0–100) with reasoning         |
-| `cost_normalization`   | Deterministic price normalization + budget check      |
-| `scoring`              | Weighted composite score formula                      |
-| `ranking`              | Sort by final score, assign ranks                     |
-| `explanation`          | LLM generates recommendation report                   |
-
-All nodes use `llama-3.1-8b-instant` via Groq (configurable in `.env`).
+1.  **Service Layer**: All business logic is encapsulated in `app/services`, isolating the API routes from data access logic.
+2.  ** LangGraph Pipeline**: A deterministic workflow that orchestrates LLM nodes (Groq) for discovery, enrichment, and analysis.
+3.  **ARQ Worker**: A dedicated background process that handles long-running AI tasks, ensuring high availability of the main API.
 
 ---
 
@@ -42,41 +25,16 @@ All nodes use `llama-3.1-8b-instant` via Groq (configurable in `.env`).
 ```
 smart-procurement/
 ├── app/
-│   ├── main.py                    # FastAPI entry point
-│   ├── config.py                  # Centralized config + LLM model routing
-│   ├── auth.py                    # JWT + bcrypt authentication
-│   ├── api/
-│   │   ├── auth_routes.py         # POST /api/auth/register, /api/auth/token
-│   │   └── procurement_routes.py  # POST /api/procurement/analyze
-│   ├── graph/
-│   │   ├── procurement_graph.py   # LangGraph workflow builder
-│   │   └── state.py               # Shared workflow state dataclasses
-│   ├── agents/                    # 8 LangGraph pipeline nodes
-│   │   ├── vendor_discovery.py    # SerpAPI search + LLM extraction
-│   │   ├── vendor_enrichment.py   # LLM risk signal enrichment
-│   │   ├── risk_analysis.py       # Risk scoring
-│   │   ├── reliability_analysis.py # Reliability scoring
-│   │   ├── cost_normalization.py  # Price normalization
-│   │   ├── scoring.py             # Weighted final score
-│   │   ├── ranking.py             # Sort + assign ranks
-│   │   └── explanation.py         # AI recommendation
-│   ├── llm/
-│   │   ├── groq_client.py         # Groq LLM wrapper
-│   │   └── model_router.py        # Node → model mapping
-│   ├── models/
-│   │   └── user.py                # User SQLAlchemy model
-│   ├── schemas/
-│   │   └── procurement_schema.py  # Pydantic API schemas
-│   └── database/
-│       ├── __init__.py            # Async SQLAlchemy engine + init_db
-│       └── session.py             # Session re-exports
-├── tests/
-│   ├── test_scoring.py            # Unit tests (scoring logic)
-│   ├── test_graph.py              # Integration tests (workflow)
-│   └── test_api.py                # API endpoint tests
-├── .github/workflows/ci.yml       # GitHub Actions CI/CD
-├── requirements.txt
-├── pyproject.toml
+│   ├── api/               # Lightweight FastAPI routes
+│   ├── services/          # Centralized business logic (AuthService, ProcurementService)
+│   ├── agents/            # LangGraph workflow nodes
+│   ├── models/            # SQLAlchemy Database models
+│   ├── graph/             # Workflow definitions & state management
+│   ├── llm/               # LLM clients & routing
+│   └── worker.py          # ARQ background task definitions
+├── alembic/               # Database migration scripts
+├── tests/                 # Comprehensive test suite
+├── scripts/               # Utility scripts (run_worker, verify_sse)
 └── .env.example
 ```
 

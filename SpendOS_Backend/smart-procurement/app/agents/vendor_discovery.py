@@ -82,18 +82,13 @@ async def _search_vendors_online(req) -> List[dict]:
     Returns a deduplicated list of organic search result dicts.
     """
     queries = [
-        f"{req.product_name} B2B wholesale suppliers",
-        f"top {req.product_category} manufacturers {req.product_name}",
+        f"{req.product_name} B2B wholesale suppliers shipping to {req.shipping_destination}",
+        f"top {req.product_category} manufacturers {req.product_name} serving {req.shipping_destination}",
     ]
 
-    # Fire all queries sequentially to avoid rate limits
-    query_results = []
-    for q in queries:
-        try:
-            res = await _run_single_query(q)
-            query_results.append(res)
-        except Exception as e:
-            query_results.append(e)
+    # Fire all queries in parallel for speed
+    tasks = [_run_single_query(q) for q in queries]
+    query_results = await asyncio.gather(*tasks)
 
     # Merge results, skipping any that raised exceptions
     all_results = []
@@ -186,7 +181,9 @@ async def _extract_vendors_from_results(
         f"- Product: {req.product_name}\n"
         f"- Category: {req.product_category}\n"
         f"- Quantity needed: {req.quantity}\n"
-        f"- Budget: ${req.budget_usd or 'not specified'}\n"
+        f"- Target Budget: ${req.budget_usd or 'not specified'}\n"
+        f"- Shipping Destination: {req.shipping_destination}\n"
+        f"- Preferred Region: {req.vendor_region_preference or 'No preference'}\n"
         f"- Required certifications: {req.required_certifications or 'none'}\n\n"
         f"Here are Google search results about potential suppliers:\n\n"
         f"{''.join(formatted_results)}\n\n"

@@ -34,13 +34,17 @@ class ProcurementRequest(BaseModel):
     description: Optional[str] = Field(None, max_length=2000,
                                         description="Detailed requirements")
     quantity: int = Field(..., gt=0, description="Required quantity")
-    budget_usd: Optional[float] = Field(None, gt=0, description="Maximum budget in USD")
+    budget_usd: float = Field(..., gt=0, description="Maximum budget in USD")
+    payment_terms: str = Field(..., description="Required payment terms (e.g. Net 30)")
+    incoterms: Optional[str] = Field(None, description="Preferred Incoterms (e.g. FOB, CIF)")
     required_certifications: Optional[List[str]] = Field(
         default=None, description="e.g., ['ISO 9001', 'CE Mark']"
     )
-    delivery_deadline_days: Optional[int] = Field(
-        None, gt=0, description="Delivery required within N days"
+    delivery_deadline_days: int = Field(
+        ..., gt=0, description="Delivery required within N days"
     )
+    shipping_destination: str = Field(..., description="Destination country/city for the goods")
+    vendor_region_preference: Optional[str] = Field(None, description="Preferred vendor region (e.g. Europe, Asia)")
     scoring_weights: ScoringWeights = Field(
         default_factory=ScoringWeights,
         description="Configurable scoring weights"

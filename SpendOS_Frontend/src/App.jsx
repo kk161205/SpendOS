@@ -13,7 +13,19 @@ import SessionList from './components/Dashboard/SessionList';
 import ProcurementForm from './components/ProcurementForm/ProcurementForm';
 import ResultsPage from './components/Results/ResultsPage';
 
+import { useEffect } from 'react';
+
 function App() {
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      // Clear local storage and redirect
+      localStorage.removeItem('csrf_token');
+      window.location.href = '/login?expired=true';
+    };
+    window.addEventListener('auth:expired', handleAuthExpired);
+    return () => window.removeEventListener('auth:expired', handleAuthExpired);
+  }, []);
+
   return (
     <AuthProvider>
       <SessionProvider>

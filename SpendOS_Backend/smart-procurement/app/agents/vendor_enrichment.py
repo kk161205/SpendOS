@@ -13,11 +13,13 @@ logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.VENDOR_ENRICHMENT)
 
 SYSTEM_PROMPT = """You are a vendor intelligence analyst. Analyze the vendor profile and 
-estimate risk signals. Return ONLY valid JSON with these exact keys:
+estimate risk signals and commercial terms. Return ONLY valid JSON with these exact keys:
 {
   "financial_stability_score": <float 0-100>,
   "negative_news_mentions": <int 0-10>,
   "compliance_issues": <int 0-5>,
+  "payment_terms": "<string e.g. Net 30, Advance 50%>",
+  "incoterms": "<string e.g. FOB, CIF, EXW>",
   "enrichment_notes": "<string>"
 }
 Do not include any explanation or markdown."""
@@ -92,5 +94,7 @@ async def _enrich_vendor(vendor: VendorData) -> VendorData:
     vendor.financial_stability_score = float(data.get("financial_stability_score", 50))
     vendor.negative_news_mentions = int(data.get("negative_news_mentions", 0))
     vendor.compliance_issues = int(data.get("compliance_issues", 0))
+    vendor.payment_terms = data.get("payment_terms")
+    vendor.incoterms = data.get("incoterms")
 
     return vendor

@@ -1,33 +1,26 @@
-import asyncio
-import csv
 import io
+import csv
 import logging
 import uuid
-import json
+from sqlalchemy import select
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-
-from app.auth import get_current_user
 from app.database import get_db
+from app.auth import get_current_user
 from app.models.task import ProcurementTask
-from app.models.procurement import ProcurementSession, VendorResult
-from app.utils.cache_utils import generate_procurement_hash
+from app.models.procurement import ProcurementSession
+from app.services.procurement_service import ProcurementService
 from app.schemas.procurement_schema import (
-    ProcurementRequest as ProcurementRequestSchema,
-    ProcurementAnalysisResponse,
-    VendorScoreResponse,
     TaskAcceptedResponse,
     TaskStatusResponse,
     ProcurementHistorySessionResponse,
     ProcurementHistoryPaginatedResponse,
+    ProcurementRequest as ProcurementRequestSchema,
 )
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/procurement", tags=["Procurement"])
-
-
 
 @router.post("/analyze", response_model=TaskAcceptedResponse)
 async def analyze_procurement(
@@ -36,50 +29,14 @@ async def analyze_procurement(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Queue a background task to execute the full AI procurement pipeline.
-    Returns immediately with a task_id.
-
-    The task is enqueued to ARQ (Redis-backed) for reliable, retryable execution
-    in a separate worker process.
-    """
-    logger.info(f"[/analyze] Received analysis request for '{payload.product_name}' by user '{current_user['user_id']}'")
-    logger.debug(f"[/analyze] Payload: {payload.model_dump()}")
-
-    request_id = str(uuid.uuid4())
-    arq_pool = request.app.state.arq_pool
-
-    # Caching Layer Check
-    cache_key = generate_procurement_hash(payload)
-    cached_result_bytes = await arq_pool.get(cache_key)
-
-    if cached_result_bytes:
-        logger.info(f"[/analyze] CACHE HIT for '{payload.product_name}'. Bypassing background worker.")
-        cached_result = json.loads(cached_result_bytes.decode("utf-8"))
-        cached_result["request_id"] = request_id  # Emulate unique request structure
-        
-        # Deposit directly as "completed" to save cost/latency
-        task = ProcurementTask(id=request_id, user_id=current_user["user_id"], status="completed", result=cached_result)
-        db.add(task)
-        await db.commit()
-        
-        # The frontend still receives "pending" to emulate async resolution polling gracefully
-        return TaskAcceptedResponse(task_id=request_id, status="pending")
-
-    # Cache Miss -> Queue to worker
-    task = ProcurementTask(id=request_id, user_id=current_user["user_id"], status="pending")
-    db.add(task)
-    await db.commit()
-
-    logger.info(f"[/analyze] Created ProcurementTask with ID: {request_id}. Enqueuing to ARQ.")
-    await arq_pool.enqueue_job(
-        "run_procurement_task",
-        task_id=request_id,
-        payload=payload.model_dump(),
-        user_id=current_user["user_id"],
+    """Queue or return cached procurement analysis."""
+    result = await ProcurementService.analyze(
+        payload, 
+        current_user["user_id"], 
+        request.app.state.arq_pool, 
+        db
     )
-
-    return TaskAcceptedResponse(task_id=request_id, status="pending")
+    return TaskAcceptedResponse(**result)
 
 
 @router.get("/status/{task_id}", response_model=TaskStatusResponse)
@@ -88,9 +45,7 @@ async def get_task_status(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get the status and result of a background procurement analysis task.
-    """
+    """Get status of a background task."""
     result = await db.execute(
         select(ProcurementTask).where(
             ProcurementTask.id == task_id,
@@ -98,7 +53,6 @@ async def get_task_status(
         )
     )
     task = result.scalar_one_or_none()
-
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
@@ -109,94 +63,6 @@ async def get_task_status(
     )
 
 
-async def task_event_generator(task_id: str, user_id: str, request: Request, db_factory):
-    """
-    Subscribes to Redis Pub/Sub for a specific task and yields SSE events.
-    """
-    arq_pool = request.app.state.arq_pool
-    
-    # 1. Yield current state from DB immediately
-    async with db_factory() as db:
-        result = await db.execute(
-            select(ProcurementTask).where(
-                ProcurementTask.id == task_id,
-                ProcurementTask.user_id == user_id
-            )
-        )
-        task = result.scalar_one_or_none()
-        
-        if not task:
-            yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
-            return
-            
-        yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
-        
-        if task.status in ["completed", "failed"]:
-            return
-
-    # 2. Subscribe to Redis for future updates
-    pubsub = arq_pool.pubsub()
-    await pubsub.subscribe(f"task_updates:{task_id}")
-    
-    # Check for race condition: did it finish between first check and subscription?
-    async with db_factory() as db:
-        result = await db.execute(select(ProcurementTask).where(ProcurementTask.id == task_id))
-        task = result.scalar_one_or_none()
-        if task and task.status in ["completed", "failed"]:
-            yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
-            return
-    
-    try:
-        while True:
-            if await request.is_disconnected():
-                break
-
-            # Block efficiently waiting for Redis Pub/Sub. Timeout every 15s to check disconnects.
-            message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=15.0)
-            
-            if message:
-                data_str = message["data"]
-                if isinstance(data_str, bytes):
-                    data_str = data_str.decode("utf-8")
-                data = json.loads(data_str)
-                yield f"data: {json.dumps(data)}\n\n"
-                
-                if data.get("status") in ["completed", "failed"]:
-                    break
-            else:
-                # Timeout fallback: Only hit the DB if we haven't heard anything for 15 seconds
-                async with db_factory() as db:
-                    check_result = await db.execute(
-                        select(ProcurementTask).where(ProcurementTask.id == task_id)
-                    )
-                    task = check_result.scalar_one_or_none()
-                    if task and task.status in ["completed", "failed"]:
-                        yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
-                        break
-    except Exception as e:
-        logger.error(f"SSE stream error for task {task_id}: {e}")
-        yield f"data: {json.dumps({'error': 'Stream encountered an error'})}\n\n"
-    finally:
-        await pubsub.unsubscribe(f"task_updates:{task_id}")
-
-
-@router.get("/events/{task_id}")
-async def stream_task_events(
-    task_id: str,
-    request: Request,
-    current_user: dict = Depends(get_current_user),
-):
-    """
-    SSE endpoint to stream real-time task status updates.
-    """
-    from app.database import async_session_factory
-    
-    return StreamingResponse(
-        task_event_generator(task_id, current_user["user_id"], request, async_session_factory),
-        media_type="text/event-stream"
-    )
-
-
 @router.get("/history", response_model=ProcurementHistoryPaginatedResponse)
 async def get_procurement_history(
     limit: int = 10,
@@ -204,35 +70,13 @@ async def get_procurement_history(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Get all past procurement sessions with their top vendors for the current user.
-    """
-    from sqlalchemy.orm import selectinload
-    from sqlalchemy import func
-
-    count_stmt = select(func.count(ProcurementSession.id)).where(
-        ProcurementSession.user_id == current_user["user_id"]
-    )
-    total_count = await db.scalar(count_stmt)
-
-    result = await db.execute(
-        select(ProcurementSession)
-        .where(ProcurementSession.user_id == current_user["user_id"])
-        .order_by(ProcurementSession.created_at.desc())
-        .options(selectinload(ProcurementSession.vendor_results))
-        .offset(offset)
-        .limit(limit)
-    )
-    sessions = result.scalars().all()
-
+    """Get paginated history."""
+    total, sessions = await ProcurementService.get_history(current_user["user_id"], limit, offset, db)
+    
     response = []
     for s in sessions:
-        # Sort vendors by rank
-        sorted_vendors = sorted(s.vendor_results, key=lambda v: v.rank)
-        
-        # Build results object that mimics ProcurementAnalysisResponse for the UI
         vendor_dicts = []
-        for v in sorted_vendors:
+        for v in sorted(s.vendor_results, key=lambda x: x.rank):
             vendor_dicts.append({
                 "vendor_id": v.vendor_id or v.id,
                 "vendor_name": v.vendor_name,
@@ -249,6 +93,12 @@ async def get_procurement_history(
             "total_vendors_evaluated": len(vendor_dicts),
             "ai_explanation": s.ai_explanation,
             "product_category": s.category,
+            "budget_usd": s.budget,
+            "payment_terms": s.payment_terms,
+            "shipping_destination": s.shipping_destination,
+            "incoterms": s.incoterms,
+            "delivery_deadline_days": s.delivery_deadline_days,
+            "vendor_region_preference": s.vendor_region_preference,
         }
         
         response.append(ProcurementHistorySessionResponse(
@@ -260,7 +110,7 @@ async def get_procurement_history(
             results=results_obj,
         ))
 
-    return ProcurementHistoryPaginatedResponse(total=total_count, items=response)
+    return ProcurementHistoryPaginatedResponse(total=total, items=response)
 
 
 @router.delete("/history/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -269,26 +119,10 @@ async def delete_procurement_session(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Delete a specific procurement session.
-    Cascades automatically to VendorResult due to SQLAlchemy relationship.
-    """
-    result = await db.execute(
-        select(ProcurementSession).where(
-            ProcurementSession.id == session_id,
-            ProcurementSession.user_id == current_user["user_id"]
-        )
-    )
-    session = result.scalar_one_or_none()
-    
-    if not session:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, 
-            detail="Session not found or forbidden"
-        )
-        
-    await db.delete(session)
-    await db.commit()
+    """Delete a session."""
+    success = await ProcurementService.delete_session(session_id, current_user["user_id"], db)
+    if not success:
+        raise HTTPException(status_code=404, detail="Session not found or forbidden")
     return None
 
 
@@ -330,6 +164,10 @@ async def export_procurement_results(
     writer.writerow(["Product Name", session.product_name])
     writer.writerow(["Category", session.category])
     writer.writerow(["Budget (USD)", session.budget or "N/A"])
+    writer.writerow(["Shipping Destination", session.shipping_destination or "N/A"])
+    writer.writerow(["Payment Terms", session.payment_terms or "N/A"])
+    writer.writerow(["Incoterms", session.incoterms or "N/A"])
+    writer.writerow(["Deadline (Days)", session.delivery_deadline_days or "N/A"])
     writer.writerow(["Date", session.created_at.strftime("%Y-%m-%d %H:%M:%S")])
     writer.writerow([])
     

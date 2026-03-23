@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSession } from '../../context/SessionContext';
 import { procurementService } from '../../services/procurementService';
-import { validateWeights, validateProductName, validateBudget, validateQuantity, CATEGORIES, CERTIFICATIONS } from './FormValidation';
+import { validateWeights, validateProductName, validateBudget, validateDeadline, validateQuantity, validateShippingDestination, CATEGORIES, CERTIFICATIONS, PAYMENT_TERMS, INCOTERMS, REGIONS } from './FormValidation';
 import { AlertCircle, ArrowRight, Settings, Package, Sliders, Target } from 'lucide-react';
 
 export default function ProcurementForm() {
@@ -19,6 +19,10 @@ export default function ProcurementForm() {
   const [budget, setBudget] = useState('');
   const [selectedCerts, setSelectedCerts] = useState([]);
   const [deadline, setDeadline] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState(PAYMENT_TERMS[0]);
+  const [incoterms, setIncoterms] = useState(INCOTERMS[1]); // Default to FOB
+  const [shippingDestination, setShippingDestination] = useState('');
+  const [vendorRegionPreference, setVendorRegionPreference] = useState(REGIONS[0]);
 
   // Weights
   const [costWeight, setCostWeight] = useState(0.35);
@@ -63,9 +67,11 @@ export default function ProcurementForm() {
     const nameErr = validateProductName(productName);
     const qtyErr = validateQuantity(quantity);
     const bdgErr = validateBudget(budget);
+    const ddlErr = validateDeadline(deadline);
+    const destErr = validateShippingDestination(shippingDestination);
     
-    if (nameErr || qtyErr || bdgErr) {
-      setError(nameErr || qtyErr || bdgErr);
+    if (nameErr || qtyErr || bdgErr || ddlErr || destErr) {
+      setError(nameErr || qtyErr || bdgErr || ddlErr || destErr);
       return;
     }
 
@@ -82,9 +88,13 @@ export default function ProcurementForm() {
       product_category: category,
       description: description.trim() || undefined,
       quantity: parseInt(quantity, 10),
-      budget_usd: budget ? parseFloat(budget) : undefined,
+      budget_usd: parseFloat(budget),
+      payment_terms: paymentTerms,
+      shipping_destination: shippingDestination.trim(),
+      vendor_region_preference: vendorRegionPreference !== 'No Preference' ? vendorRegionPreference : undefined,
+      incoterms: incoterms,
       required_certifications: selectedCerts.length > 0 ? selectedCerts : undefined,
-      delivery_deadline_days: deadline ? parseInt(deadline, 10) : undefined,
+      delivery_deadline_days: parseInt(deadline, 10),
       scoring_weights: {
         cost_weight: parseFloat(costWeight),
         reliability_weight: parseFloat(relWeight),
@@ -271,7 +281,7 @@ export default function ProcurementForm() {
           
           <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="budget" className="label-text">Max Budget (USD, Optional)</label>
+              <label htmlFor="budget" className="label-text">Max Budget (USD) *</label>
               <div className="relative rounded-md shadow-sm">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <span className="text-gray-500 sm:text-sm">$</span>
@@ -281,6 +291,7 @@ export default function ProcurementForm() {
                   type="number"
                   min="0"
                   step="0.01"
+                  required
                   value={budget}
                   onChange={(e) => setBudget(e.target.value)}
                   disabled={isSubmitting}
@@ -291,17 +302,72 @@ export default function ProcurementForm() {
             </div>
 
             <div>
-              <label htmlFor="deadline" className="label-text">Max Delivery Time (Days, Optional)</label>
+              <label htmlFor="deadline" className="label-text">Max Delivery Time (Days) *</label>
               <input
                 id="deadline"
                 type="number"
                 min="1"
+                required
                 value={deadline}
                 onChange={(e) => setDeadline(e.target.value)}
                 disabled={isSubmitting}
                 className={`input-field ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                 placeholder="30"
               />
+            </div>
+
+            <div>
+              <label htmlFor="shippingDestination" className="label-text">Shipping Destination *</label>
+              <input
+                id="shippingDestination"
+                type="text"
+                required
+                value={shippingDestination}
+                onChange={(e) => setShippingDestination(e.target.value)}
+                disabled={isSubmitting}
+                className={`input-field ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                placeholder="e.g. London, UK"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="regionPreference" className="label-text">Preferred Vendor Region</label>
+              <select
+                id="regionPreference"
+                value={vendorRegionPreference}
+                onChange={(e) => setVendorRegionPreference(e.target.value)}
+                disabled={isSubmitting}
+                className={`input-field bg-white ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {REGIONS.map(r => <option key={r} value={r}>{r}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="paymentTerms" className="label-text">Desired Payment Terms *</label>
+              <select
+                id="paymentTerms"
+                value={paymentTerms}
+                onChange={(e) => setPaymentTerms(e.target.value)}
+                disabled={isSubmitting}
+                className={`input-field bg-white ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {PAYMENT_TERMS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="incoterms" className="label-text">Desired Incoterms (Optional)</label>
+              <select
+                id="incoterms"
+                value={incoterms}
+                onChange={(e) => setIncoterms(e.target.value)}
+                disabled={isSubmitting}
+                className={`input-field bg-white ${isSubmitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <option value="">No Preference</option>
+                {INCOTERMS.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
             </div>
 
             <div className="sm:col-span-2">

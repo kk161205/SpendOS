@@ -47,15 +47,17 @@ Whether you are seeking robust cost optimization or a complete audit trail of po
 
 - **Framework:** FastAPI
 - **Workflow Orchestration:** LangGraph & LangChain
+- **Asynchronous Task Queue:** ARQ (Redis-backed)
 - **AI/LLM Provider:** Groq
-- **Database (Auth):** SQLAlchemy with PostgreSQL/SQLite support
+- **Database:** PostgreSQL with SQLAlchemy 2.0
+- **Migrations:** Alembic
 - **Testing:** `pytest`, `pytest-asyncio`
 - **Language:** Python 3.10+
 
 ### Frontend
 
 - **Framework:** React 19 (via Vite)
-- **Styling:** Tailwind CSS (Modern, Responsive, Glassmorphism UI)
+- **Styling:** Vanilla CSS (Modern, Responsive, Glassmorphism UI)
 - **Routing:** React Router v7
 - **HTTP Client:** Axios
 - **Linting:** ESLint & PostCSS
@@ -65,12 +67,10 @@ Whether you are seeking robust cost optimization or a complete audit trail of po
 ## ✨ Key Features
 
 1. **Intelligent Procurement Automation:** Leverages AI/ML (LangGraph flows) to automatically analyze, score, and rank vendors.
-2. **Real-time Analytics Dashboard:** Dynamic interface for visualizing supplier metrics, costs, and project risks.
-3. **Supplier Management System:** Keep track of extensive vendor information seamlessly over time.
-4. **Cost Optimization Capabilities:** Compare bids and uncover hidden cost anomalies using analytical reasoning.
-5. **Complete Audit Trail:** Traceable interactions for all LLM-driven decisions and state transitions.
-6. **RESTful API:** Completely documented backend services out-of-the-box (powered by Swagger UI/Redoc).
-7. **Responsive UI:** State-of-the-art frontend ready to adapt across mobile, tablet, and desktop interfaces.
+2. **Asynchronous Processing:** Long-running AI tasks are handled via a robust background worker (ARQ), surviving server restarts.
+3. **Real-time Task Tracking:** Monitor procurement status via secure SSE/Polling updates.
+4. **Professional Service Layer:** Architecture follows a clean Service pattern for modular business logic.
+5. **Security First:** HttpOnly cookies, Double-Submit CSRF protection, and explicit database transaction control.
 
 ---
 
@@ -81,28 +81,25 @@ This repository operates as a monorepo containing both the FastAPI Backend and t
 ```text
 SpendOS/
 ├── .github/                 # GitHub workflows (CI/CD)
-├── .gitignore               # Global git exclusions
+├── alembic/                 # Database migration history
+├── Dockerfile               # Multi-stage production build
+├── docker-compose.yaml      # Full-stack orchestration (API, Worker, Postgres, Redis)
 ├── README.md                # This project documentation
 ├── requirements.txt         # Root-level Python dependencies
-├── venv/                    # Python virtual environment (ignored from repo)
 │
 ├── SpendOS_Backend/         # FastAPI Backend Application
 │   └── smart-procurement/
-│       ├── app/             # Main application codebase (API, Agents, DB)
+│       ├── app/             
+│       │   ├── api/         # FastAPI Routes
+│       │   ├── services/    # Business Logic (Auth, Procurement)
+│       │   ├── agents/      # LangGraph AI nodes
+│       │   └── models/      # SQLAlchemy Models
 │       ├── tests/           # Dedicated pytest test suite
-│       ├── .env.example     # Template for backend environment variables
-│       ├── pyproject.toml   # Python project settings (pytest config, etc.)
-│       └── README.md        # Detailed backend documentation
+│       └── .env.example     # Template for backend environment variables
 │
 └── SpendOS_Frontend/        # React + Vite Frontend Client
-    ├── public/              # Static external assets (e.g. logo)
-    ├── src/                 # Main frontend source code (components, styles)
-    ├── .env.example         # Template for frontend environment variables
-    ├── eslint.config.js     # Global ESLint configuration
-    ├── package.json         # NPM dependencies and scripts
-    ├── tailwind.config.js   # Tailwind style customization
-    ├── vite.config.js       # Vite build configurations
-    └── README.md            # Detailed frontend documentation
+    ├── src/                 # Main frontend source code
+    └── vercel.json          # Deployment configuration
 ```
 
 ---
@@ -111,10 +108,10 @@ SpendOS/
 
 Before starting, ensure your operating system has the following installed:
 
-- **Python 3.10+**: Required for modern type hinting (union types) used in the backend.
-- **Node.js 18+ & NPM**: For frontend dependency management and the Vite server.
-- **PostgreSQL 15+**: Primary database for user management and procurement sessions.
-- **Redis 6+**: Required for ARQ background tasks and real-time SSE updates.
+- **Python 3.10+**: Required for modern type hinting.
+- **Node.js 18+ & NPM**: For frontend development.
+- **PostgreSQL 15+**: Primary database.
+- **Redis 6+**: Required for ARQ background tasks.
 - **Git**: For version control.
 
 ### Detailed Backend Dependencies

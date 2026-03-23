@@ -8,6 +8,10 @@ langgraph==0.3.34
 langchain-core==0.3.49
 langchain-groq==0.3.2
 
+# Error Tracking
+pytest
+pytest-asyncio
+
 # Database (async only — PostgreSQL via asyncpg)
 sqlalchemy==2.0.40
 asyncpg==0.30.0
@@ -34,3 +38,6 @@ tenacity==9.0.0
 # Task Queue (ARQ + Redis)
 arq==0.27.0
 redis[hiredis]==5.2.1
+
+# Database Migrations
+alembic==1.13.1

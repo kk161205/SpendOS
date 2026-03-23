@@ -24,6 +24,7 @@ from app.models.procurement import ProcurementSession, VendorResult
 from app.models.task import ProcurementTask
 from app.schemas.procurement_schema import ProcurementAnalysisResponse, VendorScoreResponse
 from app.utils.cache_utils import generate_procurement_hash_from_dict
+from app.graph.state import UserRequirements
 
 logger = logging.getLogger(__name__)
 settings = get_settings()
@@ -32,11 +33,10 @@ settings = get_settings()
 async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_id: str):
     """
     ARQ task function. Runs the LangGraph procurement workflow and saves results.
-
-    This is the equivalent of the old `run_procurement_background()` but now
-    managed by ARQ with retry support and crash resilience.
     """
-    logger.info(f"[arq_worker] Starting procurement workflow for task {task_id}")
+    # Contextual logging for better traceability
+    log_prefix = f"[Task:{task_id}]"
+    logger.info(f"{log_prefix} Starting procurement workflow")
 
     async with async_session_factory() as db:
         try:
@@ -57,9 +57,13 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 product_category=payload["product_category"],
                 description=payload.get("description"),
                 quantity=payload["quantity"],
-                budget_usd=payload.get("budget_usd"),
+                budget_usd=payload["budget_usd"],
+                payment_terms=payload["payment_terms"],
+                shipping_destination=payload["shipping_destination"],
+                vendor_region_preference=payload.get("vendor_region_preference"),
+                incoterms=payload.get("incoterms"),
                 required_certifications=payload.get("required_certifications", []),
-                delivery_deadline_days=payload.get("delivery_deadline_days"),
+                delivery_deadline_days=payload["delivery_deadline_days"],
                 cost_weight=payload.get("scoring_weights", {}).get("cost_weight", 0.35),
                 reliability_weight=payload.get("scoring_weights", {}).get("reliability_weight", 0.40),
                 risk_weight=payload.get("scoring_weights", {}).get("risk_weight", 0.25),
@@ -105,29 +109,28 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 scoring_weights_used=payload.get("scoring_weights", {}),
             ).model_dump()
 
-            # --- Caching Write-Back ---
-            cache_key = generate_procurement_hash_from_dict(payload)
-            
-            # Push into Redis (7 Days TTL)
-            await ctx["redis"].setex(cache_key, 7 * 24 * 3600, json.dumps(final_result))
-            logger.info(f"[arq_worker] Wrote new results into cache `{cache_key}`")
-            # --------------------------
+            # Skipping explicit Redis cache write (Migrating to Postgres Caching later)
 
-            # Create session record
-            procurement_session = ProcurementSession(
+            # 4. Save to historical session for the user
+            proc_session = ProcurementSession(
                 user_id=user_id,
-                product_name=payload["product_name"],
-                category=payload["product_category"],
-                budget=payload.get("budget_usd"),
-                status="completed",
+                product_name=requirements.product_name,
+                category=requirements.product_category,
+                budget=requirements.budget_usd,
+                shipping_destination=requirements.shipping_destination,
+                vendor_region_preference=requirements.vendor_region_preference,
+                payment_terms=requirements.payment_terms,
+                incoterms=requirements.incoterms,
+                delivery_deadline_days=requirements.delivery_deadline_days,
                 ai_explanation=final_state.ai_explanation,
+                status="completed"
             )
-            db.add(procurement_session)
+            db.add(proc_session)
             await db.flush()
 
             for vendor_score in final_state.ranked_vendors:
                 vr = VendorResult(
-                    session_id=procurement_session.id,
+                    session_id=proc_session.id,
                     vendor_id=vendor_score.vendor_data.vendor_id,
                     vendor_name=vendor_score.vendor_data.name,
                     final_score=vendor_score.final_score,
@@ -157,6 +160,8 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
 
         except Exception as e:
             logger.error(f"[arq_worker] Task {task_id} failed: {e}", exc_info=True)
+            await db.rollback()  # Recover from broken transaction state
+            
             result = await db.execute(select(ProcurementTask).where(ProcurementTask.id == task_id))
             task = result.scalar_one_or_none()
             if task:
@@ -179,6 +184,7 @@ async def startup(ctx: dict):
         format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
     )
     logger.info("[arq_worker] Worker starting up — initializing DB...")
+
     await init_db()
 
 
@@ -200,6 +206,10 @@ class WorkerSettings:
     max_tries = 3           # Retry up to 3 times on failure
     job_timeout = 120       # 2 minute timeout per job (AI pipeline can be slow)
     retry_defer_s = 10      # Base delay between retries (ARQ uses exponential backoff)
+
+    # Redis Garbage Collection
+    keep_result = 3600      # 1 hour TTL
+    keep_result_forever = False
 
     # Health monitoring
     health_check_interval = 30  # seconds

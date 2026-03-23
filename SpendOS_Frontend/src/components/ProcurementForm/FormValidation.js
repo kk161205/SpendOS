@@ -11,12 +11,24 @@ export const validateProductName = (name) => {
 };
 
 export const validateBudget = (budget) => {
-  if (budget && parseFloat(budget) <= 0) return 'Budget must be greater than 0';
+  if (!budget) return 'Max Budget is required for procurement analysis';
+  if (parseFloat(budget) <= 0) return 'Budget must be greater than 0';
+  return null;
+};
+
+export const validateDeadline = (deadline) => {
+  if (!deadline) return 'Delivery Deadline is required for procurement analysis';
+  if (parseInt(deadline) <= 0) return 'Deadline must be at least 1 day';
   return null;
 };
 
 export const validateQuantity = (quantity) => {
   if (!quantity || parseInt(quantity) <= 0) return 'Quantity must be at least 1';
+  return null;
+};
+
+export const validateShippingDestination = (dest) => {
+  if (!dest || dest.trim().length < 2) return 'Shipping destination (Country/City) is required';
   return null;
 };
 
@@ -40,4 +52,33 @@ export const CERTIFICATIONS = [
   'FCC',
   'UL',
   'Energy Star'
+];
+export const PAYMENT_TERMS = [
+  'Net 30',
+  'Net 60',
+  'Net 90',
+  'Cash Against Documents',
+  'Letter of Credit',
+  '100% Advance',
+  '50% Advance / 50% on Delivery'
+];
+
+export const INCOTERMS = [
+  'EXW (Ex Works)',
+  'FOB (Free on Board)',
+  'CIF (Cost, Insurance & Freight)',
+  'DDP (Delivered Duty Paid)',
+  'FCA (Free Carrier)',
+  'CIP (Carriage and Insurance Paid)'
+];
+
+export const REGIONS = [
+  'No Preference',
+  'North America',
+  'Europe',
+  'Asia',
+  'South America',
+  'Africa',
+  'Oceania',
+  'Domestic (Same Country)'
 ];

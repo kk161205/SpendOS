@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.RELIABILITY_ANALYSIS)
 
 SYSTEM_PROMPT = """You are a vendor reliability analyst. Evaluate the vendor's operational
-reliability based on their profile. Return ONLY valid JSON:
+reliability and commercial alignment with user constraints. Return ONLY valid JSON:
 {
   "reliability_score": <float 0-100, where 100=extremely reliable>,
   "reasoning": "<2-3 sentence explanation>",
@@ -20,7 +20,8 @@ reliability based on their profile. Return ONLY valid JSON:
     "years_in_business_score": <float 0-100>,
     "certifications_score": <float 0-100>,
     "customer_satisfaction_score": <float 0-100>,
-    "delivery_performance_score": <float 0-100>
+    "delivery_performance_score": <float 0-100>,
+    "commercial_alignment_score": <float 0-100>
   }
 }"""
 
@@ -60,6 +61,11 @@ async def _analyze_reliability(vendor: VendorData, req) -> tuple:
     cert_overlap = [c for c in vendor.certifications if c in required_certs]
 
     user_prompt = (
+        f"User Requirements:\n"
+        f"- Target Budget: ${req.budget_usd}\n"
+        f"- Deadline: {req.delivery_deadline_days} days\n"
+        f"- Preferred Payment Terms: {req.payment_terms}\n"
+        f"- Preferred Incoterms: {req.incoterms or 'Any'}\n\n"
         f"Vendor: {vendor.name}\n"
         f"Years in business: {vendor.years_in_business or 'Unknown'}\n"
         f"Certifications held: {', '.join(vendor.certifications) if vendor.certifications else 'None'}\n"
@@ -69,8 +75,9 @@ async def _analyze_reliability(vendor: VendorData, req) -> tuple:
         f"Number of reviews: {vendor.review_count or 'N/A'}\n"
         f"On-time delivery rate: {vendor.on_time_delivery_rate or 'N/A'}%\n"
         f"Lead time: {vendor.lead_time_days or 'N/A'} days\n"
-        f"Required delivery deadline: {req.delivery_deadline_days or 'N/A'} days\n\n"
-        f"Provide reliability assessment as JSON."
+        f"Vendor Payment Terms: {vendor.payment_terms or 'Unknown'}\n"
+        f"Vendor Incoterms: {vendor.incoterms or 'Unknown'}\n\n"
+        f"Provide reliability assessment as JSON, focusing on how reliably they can meet user budget, deadline, and commercial terms."
     )
 
     response = await invoke_llm(

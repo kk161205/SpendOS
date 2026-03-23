@@ -38,41 +38,17 @@ export default function ScoreBreakdown({ results }) {
           </h3>
 
           <div className="flex flex-col sm:flex-row items-center justify-around gap-8 flex-grow">
-            {/* Pie Chart SVG */}
-            <div className="relative w-48 h-48 drop-shadow-md">
-              <svg viewBox="0 0 32 32" className="w-full h-full -rotate-90">
-                {/* Reliability Segment (Green) */}
-                <circle
-                  cx="16" cy="16" r="15.915494"
-                  fill="transparent"
-                  stroke="#22c55e"
-                  strokeWidth="3.5"
-                  strokeDasharray={`${weights.reliability_weight * 100} 100`}
-                />
-                {/* Cost Segment (Blue) */}
-                <circle
-                  cx="16" cy="16" r="15.915494"
-                  fill="transparent"
-                  stroke="#3b82f6"
-                  strokeWidth="3.5"
-                  strokeDasharray={`${weights.cost_weight * 100} 100`}
-                  strokeDashoffset={`-${weights.reliability_weight * 100}`}
-                />
-                {/* Risk Segment (Amber) */}
-                <circle
-                  cx="16" cy="16" r="15.915494"
-                  fill="transparent"
-                  stroke="#f59e0b"
-                  strokeWidth="3.5"
-                  strokeDasharray={`${weights.risk_weight * 100} 100`}
-                  strokeDashoffset={`-${(weights.reliability_weight + weights.cost_weight) * 100}`}
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center flex-col">
-                <span className="text-xs font-bold text-gray-400 uppercase tracking-tighter">Total</span>
-                <span className="text-xl font-black text-gray-800">100%</span>
-              </div>
-            </div>
+            {/* DeepCSS Solid Pie Chart */}
+            <div 
+              className="w-40 h-40 sm:w-48 sm:h-48 rounded-full shadow-lg border-4 border-white flex-shrink-0 transition-transform duration-500 hover:scale-105"
+              style={{
+                background: `conic-gradient(
+                  #22c55e 0% ${weights.reliability_weight * 100}%, 
+                  #3b82f6 ${weights.reliability_weight * 100}% ${(weights.reliability_weight + weights.cost_weight) * 100}%, 
+                  #f59e0b ${(weights.reliability_weight + weights.cost_weight) * 100}% 100%
+                )`
+              }}
+            ></div>
 
             {/* Legend */}
             <div className="space-y-4 w-full sm:w-auto">
