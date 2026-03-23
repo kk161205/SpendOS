@@ -138,37 +138,41 @@ async def task_event_generator(task_id: str, user_id: str, request: Request, db_
     pubsub = arq_pool.pubsub()
     await pubsub.subscribe(f"task_updates:{task_id}")
     
+    # Check for race condition: did it finish between first check and subscription?
+    async with db_factory() as db:
+        result = await db.execute(select(ProcurementTask).where(ProcurementTask.id == task_id))
+        task = result.scalar_one_or_none()
+        if task and task.status in ["completed", "failed"]:
+            yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
+            return
+    
     try:
-        # We use a timeout to occasionally check if the connection is still alive
         while True:
-            message = await pubsub.get_message(ignore_subscribe_message=True, timeout=1.0)
+            if await request.is_disconnected():
+                break
+
+            # Block efficiently waiting for Redis Pub/Sub. Timeout every 15s to check disconnects.
+            message = await pubsub.get_message(ignore_subscribe_message=True, timeout=15.0)
+            
             if message:
                 data_str = message["data"]
                 if isinstance(data_str, bytes):
                     data_str = data_str.decode("utf-8")
                 data = json.loads(data_str)
                 yield f"data: {json.dumps(data)}\n\n"
+                
                 if data.get("status") in ["completed", "failed"]:
                     break
-            
-            # Check if task finished while we were setting up subscription
-            # (Edge case protection)
-            async with db_factory() as db:
-                check_result = await db.execute(
-                    select(ProcurementTask.status).where(ProcurementTask.id == task_id)
-                )
-                current_status = check_result.scalar_one_or_none()
-                if current_status in ["completed", "failed"]:
-                    # Final check: did we miss the message? 
-                    # If we don't have the result yet, fetch it.
-                    final_result = await db.execute(
+            else:
+                # Timeout fallback: Only hit the DB if we haven't heard anything for 15 seconds
+                async with db_factory() as db:
+                    check_result = await db.execute(
                         select(ProcurementTask).where(ProcurementTask.id == task_id)
                     )
-                    final_task = final_result.scalar_one_or_none()
-                    yield f"data: {json.dumps({'status': final_task.status, 'result': final_task.result if final_task.status == 'completed' else None})}\n\n"
-                    break
-                    
-            await asyncio.sleep(0.1) # Prevent tight loop if get_message is instant
+                    task = check_result.scalar_one_or_none()
+                    if task and task.status in ["completed", "failed"]:
+                        yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
+                        break
     except Exception as e:
         logger.error(f"SSE stream error for task {task_id}: {e}")
         yield f"data: {json.dumps({'error': 'Stream encountered an error'})}\n\n"
