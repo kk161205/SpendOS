@@ -5,9 +5,22 @@ import sys
 os.environ["SECRET_KEY"] = "test-secret-key-for-unit-tests"
 os.environ["GROQ_API_KEY"] = "test-groq-key"
 os.environ["SERP_API_KEY"] = "test-serp-key"
-# Using credentials found in .env: postgres:root
-os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:root@localhost:5432/smart_procurement_test"
 os.environ["REDIS_URL"] = "redis://localhost:6379/0"
+
+# Adjust DATABASE_URL to use a test database if not already one
+# We don't hardcode credentials here anymore; we rely on the environment/settings
+# but override the DB name to avoid wiping production data.
+from app.config import get_settings
+try:
+    current_url = get_settings().database_url
+    if "_test" not in current_url:
+        # Simple suffix replacement for common postgres URLs
+        if "/" in current_url:
+            base, db_name = current_url.rsplit("/", 1)
+            os.environ["DATABASE_URL"] = f"{base}/{db_name}_test"
+except Exception:
+    # Fallback default if settings fail to load
+    os.environ["DATABASE_URL"] = "postgresql+asyncpg://postgres:root@localhost:5432/smart_procurement_test"
 
 import asyncio
 import pytest
@@ -41,6 +54,9 @@ async def test_engine():
             from app.models.user import User # noqa
             from app.models.task import ProcurementTask # noqa
             from app.models.procurement import ProcurementSession, VendorResult # noqa
+            # Dropping first ensures we catch schema changes (e.g. new columns)
+            # NOT suitable for production, but essential for consistent tests.
+            await conn.run_sync(Base.metadata.drop_all)
             await conn.run_sync(Base.metadata.create_all)
     except Exception as e:
         # Fallback to the main DB if the test DB doesn't exist, 
