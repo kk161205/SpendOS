@@ -1,22 +1,22 @@
 import logging
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+
+from arq import create_pool
+from arq.connections import RedisSettings
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
-from arq import create_pool
-from arq.connections import RedisSettings
+from slowapi.util import get_remote_address
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from app.config import get_settings
-from app.database import init_db, get_db
-from app.api.procurement_routes import router as procurement_router
 from app.api.auth_routes import router as auth_router
-from fastapi import FastAPI, Request, Depends
+from app.api.procurement_routes import router as procurement_router
+from app.config import get_settings
+from app.database import get_db, init_db
 
 logging.basicConfig(
     level=logging.INFO,
