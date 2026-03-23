@@ -4,6 +4,7 @@ All LLM model assignments are managed here to distribute
 Groq API load across multiple models and avoid rate limits.
 """
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 from functools import lru_cache
 
@@ -72,6 +73,26 @@ class Settings(BaseSettings):
 
     # LLM Max Tokens
     llm_max_tokens: int = 2048
+
+    @model_validator(mode="after")
+    def _validate_required_secrets(self) -> "Settings":
+        """Fail fast if critical secrets are missing or empty."""
+        errors: list[str] = []
+
+        if not self.secret_key or not self.secret_key.strip():
+            errors.append("SECRET_KEY is empty — required for JWT signing")
+        if not self.groq_api_key or not self.groq_api_key.strip():
+            errors.append("GROQ_API_KEY is missing — required for LLM inference")
+        if not self.serp_api_key or not self.serp_api_key.strip():
+            errors.append("SERP_API_KEY is missing — required for vendor discovery")
+
+        if errors:
+            raise ValueError(
+                "\n\n❌ STARTUP ABORTED — invalid configuration:\n  • "
+                + "\n  • ".join(errors)
+                + "\n\nSet these in your .env file or environment variables.\n"
+            )
+        return self
 
     class Config:
         env_file = ".env"

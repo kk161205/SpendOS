@@ -31,6 +31,7 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("Starting Smart Procurement Platform...")
+    logger.info("✅ Configuration validated — all required secrets are present.")
     await init_db()
     logger.info("Connecting to Redis for ARQ task queue...")
     app.state.arq_pool = await create_pool(RedisSettings.from_dsn(settings.redis_url))
