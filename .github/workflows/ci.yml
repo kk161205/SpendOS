@@ -54,6 +54,8 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/spendos_test
           REDIS_URL: redis://localhost:6379/0
           SECRET_KEY: test_secret_key_for_ci_pipeline
+          GROQ_API_KEY: test-groq-key-for-ci
+          SERP_API_KEY: test-serp-key-for-ci
         run: |
           cd SpendOS_Backend/smart-procurement
           pytest -v --cov
