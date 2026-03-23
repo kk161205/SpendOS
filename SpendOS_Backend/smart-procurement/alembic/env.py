@@ -18,7 +18,9 @@ settings = get_settings()
 config = context.config
 
 # Set the sqlalchemy.url from our application settings
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Alembic's default sync engines don't like +asyncpg, so we strip it
+sync_url = settings.database_url.replace("+asyncpg", "")
+config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
 if config.config_file_name is not None:

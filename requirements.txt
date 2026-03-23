@@ -13,6 +13,7 @@ langchain==0.3.18
 # Database (async only — PostgreSQL via asyncpg)
 sqlalchemy==2.0.40
 asyncpg==0.30.0
+psycopg2-binary==2.9.11
 
 # Auth & Security
 PyJWT[crypto]==2.10.1
