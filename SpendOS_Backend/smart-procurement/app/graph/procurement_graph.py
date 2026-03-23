@@ -9,17 +9,17 @@ Pipeline:
 
 import logging
 import copy
-import threading
+import asyncio
 from langgraph.graph import StateGraph, END
 
 _compiled_graph = None
-_graph_lock = threading.Lock()
+_graph_lock = asyncio.Lock()
 
-def get_procurement_graph():
+async def get_procurement_graph():
     """Return the cached compiled LangGraph, building it thread-safely if needed."""
     global _compiled_graph
     if _compiled_graph is None:
-        with _graph_lock:
+        async with _graph_lock:
             if _compiled_graph is None:
                 _compiled_graph = build_procurement_graph()
     return _compiled_graph
@@ -138,7 +138,7 @@ async def run_procurement_workflow(requirements: UserRequirements) -> Procuremen
     Returns:
         Completed ProcurementWorkflowState with ranked vendors and explanation.
     """
-    graph = get_procurement_graph()
+    graph = await get_procurement_graph()
 
     initial_state = ProcurementWorkflowState(user_requirements=requirements)
     

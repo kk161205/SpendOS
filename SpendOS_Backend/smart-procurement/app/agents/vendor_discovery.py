@@ -78,56 +78,30 @@ async def vendor_discovery_node(state: ProcurementWorkflowState) -> ProcurementW
 async def _search_vendors_online(req) -> List[dict]:
     """
     Use SerpAPI to search Google for vendor/supplier information.
-    Returns a list of organic search result dicts.
+    Queries run in parallel via asyncio.gather for ~2× speedup.
+    Returns a deduplicated list of organic search result dicts.
     """
-    # Use broader queries that map better to Google organic results
     queries = [
         f"{req.product_name} B2B wholesale suppliers",
         f"top {req.product_category} manufacturers {req.product_name}",
     ]
 
+    # Fire all queries concurrently; each has its own timeout
+    query_results = await asyncio.gather(
+        *[_run_single_query(q) for q in queries],
+        return_exceptions=True,
+    )
+
+    # Merge results, skipping any that raised exceptions
     all_results = []
-    for query in queries:
-        try:
-            search = GoogleSearch({
-                "q": query,
-                "api_key": settings.serp_api_key,
-                "num": 10,
-                "engine": "google",
-                "gl": "us",
-                "hl": "en"
-            })
-            results = await asyncio.to_thread(search.get_dict)
-            
-            # SerpAPI returns errors in the dictionary payload instead of raising HTTP exceptions
-            if "error" in results:
-                logger.error(f"[vendor_discovery] SerpAPI returned an error: {results['error']}")
-                continue
-
-            organic = results.get("organic_results", [])
-            
-            # If still nothing, try without gl/hl locks which sometimes restrict B2B results
-            if not organic:
-                logger.info(f"[vendor_discovery] Query '{query}' yielded 0 results, retrying without location bounds...")
-                broad_search = GoogleSearch({
-                    "q": query,
-                    "api_key": settings.serp_api_key,
-                    "num": 10,
-                    "engine": "google"
-                })
-                broad_results = await asyncio.to_thread(broad_search.get_dict)
-                if "error" in broad_results:
-                    logger.error(f"[vendor_discovery] SerpAPI returned an error on retry: {broad_results['error']}")
-                else:
-                    organic = broad_results.get("organic_results", [])
-
-            all_results.extend(organic)
-            logger.info(f"[vendor_discovery] SerpAPI query '{query}' → {len(organic)} results")
-        except Exception as e:
-            logger.error(f"[vendor_discovery] SerpAPI search failed for '{query}': {e}", exc_info=True)
+    for i, result in enumerate(query_results):
+        if isinstance(result, Exception):
+            logger.error(f"[vendor_discovery] Query '{queries[i]}' failed: {result}")
+        else:
+            all_results.extend(result)
 
     # Deduplicate by link
-    seen_links = set()
+    seen_links: set[str] = set()
     unique_results = []
     for r in all_results:
         link = r.get("link", "")
@@ -136,6 +110,58 @@ async def _search_vendors_online(req) -> List[dict]:
             unique_results.append(r)
 
     return unique_results[:15]  # Cap at 15 results
+
+
+async def _run_single_query(query: str, timeout_seconds: float = 15.0) -> List[dict]:
+    """
+    Execute a single SerpAPI query with timeout and automatic
+    geo-lock fallback if no results are returned.
+    """
+    try:
+        return await asyncio.wait_for(
+            _execute_serp_query(query), timeout=timeout_seconds
+        )
+    except asyncio.TimeoutError:
+        logger.error(f"[vendor_discovery] SerpAPI query timed out after {timeout_seconds}s: '{query}'")
+        return []
+
+
+async def _execute_serp_query(query: str) -> List[dict]:
+    """Run SerpAPI search, falling back to a broader query if needed."""
+    search = GoogleSearch({
+        "q": query,
+        "api_key": settings.serp_api_key,
+        "num": 10,
+        "engine": "google",
+        "gl": "us",
+        "hl": "en",
+    })
+    results = await asyncio.to_thread(search.get_dict)
+
+    # SerpAPI returns errors in the dictionary payload
+    if "error" in results:
+        logger.error(f"[vendor_discovery] SerpAPI returned an error: {results['error']}")
+        return []
+
+    organic = results.get("organic_results", [])
+
+    # Fallback: retry without geo-locks if 0 results
+    if not organic:
+        logger.info(f"[vendor_discovery] Query '{query}' yielded 0 results, retrying without location bounds...")
+        broad_search = GoogleSearch({
+            "q": query,
+            "api_key": settings.serp_api_key,
+            "num": 10,
+            "engine": "google",
+        })
+        broad_results = await asyncio.to_thread(broad_search.get_dict)
+        if "error" in broad_results:
+            logger.error(f"[vendor_discovery] SerpAPI returned an error on retry: {broad_results['error']}")
+            return []
+        organic = broad_results.get("organic_results", [])
+
+    logger.info(f"[vendor_discovery] SerpAPI query '{query}' → {len(organic)} results")
+    return organic
 
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(min=1, max=10), reraise=True)

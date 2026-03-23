@@ -60,10 +60,15 @@ async def authenticated_client(client: AsyncClient):
 class TestHealth:
     @pytest.mark.asyncio(scope="session")
     async def test_health_endpoint_returns_200(self, client):
+        # Mock the ARQ pool that the health check uses
+        mock_pool = AsyncMock()
+        mock_pool.all_job_definitions = AsyncMock(return_value=[])
+        app.state.arq_pool = mock_pool
+        
         resp = await client.get("/health")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "healthy"
+        assert data["status"] == "ok"
 
     @pytest.mark.asyncio(scope="session")
     async def test_root_returns_service_info(self, client):
@@ -228,3 +233,24 @@ class TestProcurement:
             json={"quantity": 100},
         )
         assert resp.status_code == 422
+
+    @pytest.mark.asyncio(scope="session")
+    async def test_procurement_history_returns_sessions(self, authenticated_client):
+        resp = await authenticated_client.get("/api/procurement/history")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "total" in data
+        assert "items" in data
+
+    @pytest.mark.asyncio(scope="session")
+    async def test_procurement_export_unauthorized_if_no_session(self, authenticated_client):
+        resp = await authenticated_client.get("/api/procurement/export/non-existent-id")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio(scope="session")
+    async def test_auth_logout_clears_cookies(self, authenticated_client):
+        resp = await authenticated_client.post("/api/auth/logout")
+        assert resp.status_code == 200
+        set_cookies = resp.headers.get_list("set-cookie")
+        # Starlette's delete_cookie sets Max-Age=0 or an empty value with an old expires date
+        assert any("access_token=" in c and ("Max-Age=0" in c or "expires=" in c) for c in set_cookies)
