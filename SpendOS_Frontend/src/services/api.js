@@ -54,7 +54,16 @@ api.interceptors.response.use(
       originalRequest._retry = true;
       try {
         // Attempt to refresh the tokens using the HttpOnly refresh cookie
-        await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+        const refreshResponse = await axios.post(`${API_BASE_URL}/auth/refresh`, {}, { withCredentials: true });
+        
+        if (refreshResponse.data && refreshResponse.data.csrf_token) {
+          localStorage.setItem('csrf_token', refreshResponse.data.csrf_token);
+          
+          // Inject the newly obtained CSRF token directly into the retried request headers
+          if (['post', 'put', 'patch', 'delete'].includes(originalRequest.method?.toLowerCase())) {
+            originalRequest.headers['X-CSRF-Token'] = refreshResponse.data.csrf_token;
+          }
+        }
         
         // If successful, retry the original API call
         return api(originalRequest);
