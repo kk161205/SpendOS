@@ -3,7 +3,6 @@ import csv
 import io
 import logging
 import uuid
-import hashlib
 import json
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
@@ -14,6 +13,7 @@ from app.auth import get_current_user
 from app.database import get_db
 from app.models.task import ProcurementTask
 from app.models.procurement import ProcurementSession, VendorResult
+from app.utils.cache_utils import generate_procurement_hash
 from app.schemas.procurement_schema import (
     ProcurementRequest as ProcurementRequestSchema,
     ProcurementAnalysisResponse,
@@ -27,17 +27,6 @@ from app.schemas.procurement_schema import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/procurement", tags=["Procurement"])
 
-def generate_procurement_hash(payload: ProcurementRequestSchema) -> str:
-    """Generate a deterministic sha256 hash representing unique AI parameters."""
-    data_to_hash = {
-        "product": payload.product_name.lower().strip(),
-        "category": payload.product_category.lower().strip(),
-        "budget": payload.budget_usd,
-        "constraints": payload.scoring_weights.model_dump()
-    }
-    hasher = hashlib.sha256()
-    hasher.update(json.dumps(data_to_hash, sort_keys=True).encode("utf-8"))
-    return f"procurement_cache:{hasher.hexdigest()}"
 
 
 @router.post("/analyze", response_model=TaskAcceptedResponse)

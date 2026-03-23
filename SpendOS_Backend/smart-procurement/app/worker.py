@@ -108,17 +108,9 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
             ).model_dump()
 
             # --- Caching Write-Back ---
-            import hashlib
+            from app.utils.cache_utils import generate_procurement_hash_from_dict
             import json
-            data_to_hash = {
-                "product": payload["product_name"].lower().strip(),
-                "category": payload["product_category"].lower().strip(),
-                "budget": payload.get("budget_usd"),
-                "constraints": payload.get("scoring_weights", {})
-            }
-            hasher = hashlib.sha256()
-            hasher.update(json.dumps(data_to_hash, sort_keys=True).encode("utf-8"))
-            cache_key = f"procurement_cache:{hasher.hexdigest()}"
+            cache_key = generate_procurement_hash_from_dict(payload)
             
             # Push into Redis (7 Days TTL)
             await ctx["redis"].setex(cache_key, 7 * 24 * 3600, json.dumps(final_result))
