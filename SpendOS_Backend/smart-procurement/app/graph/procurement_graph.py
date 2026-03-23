@@ -106,10 +106,14 @@ def _wrap(node_fn, output_key="_state"):
         if state is None:
             state = ProcurementWorkflowState()
         
+        node_name = node_fn.__name__
+        logger.info(f"[graph] Enter node: {node_name}")
+        
         # Deepcopy to avoid parallel shared state mutation conflicts
         state_copy = copy.deepcopy(state)
         result = await node_fn(state_copy)
         
+        logger.info(f"[graph] Exit node: {node_name}")
         return {output_key: result}
     return wrapped
 

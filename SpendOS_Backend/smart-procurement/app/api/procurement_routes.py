@@ -4,7 +4,9 @@ import logging
 import uuid
 from sqlalchemy import select
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
+import json
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.auth import get_current_user
@@ -60,6 +62,71 @@ async def get_task_status(
         task_id=task.id,
         status=task.status,
         result=task.result if task.status == "completed" else None
+    )
+
+
+@router.get("/events/{task_id}")
+async def task_events(
+    task_id: str,
+    request: Request,
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Server-Sent Events (SSE) endpoint for real-time task updates.
+    """
+    async def event_generator():
+        # 1. Check current status in DB first (could already be finished)
+        stmt = select(ProcurementTask).where(
+            ProcurementTask.id == task_id,
+            ProcurementTask.user_id == current_user["user_id"]
+        )
+        res = await db.execute(stmt)
+        task = res.scalar_one_or_none()
+        
+        if not task:
+            yield f"data: {json.dumps({'error': 'Task not found'})}\n\n"
+            return
+
+        if task.status in ["completed", "failed"]:
+            yield f"data: {json.dumps({'status': task.status, 'result': task.result})}\n\n"
+            return
+
+        # 2. Subscribe to Redis for future updates
+        pool = request.app.state.arq_pool
+        async with pool.pubsub() as pubsub:
+            await pubsub.subscribe(f"task_updates:{task_id}")
+            logger.info(f"[sse] Subscribed to task_updates:{task_id}")
+
+            try:
+                while True:
+                    # Check if client disconnected
+                    if await request.is_disconnected():
+                        logger.info(f"[sse] Client disconnected from {task_id}")
+                        break
+
+                    message = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    if message:
+                        data = message["data"].decode("utf-8")
+                        yield f"data: {data}\n\n"
+                        
+                        # Stop if we reach a terminal state
+                        parsed = json.loads(data)
+                        if parsed.get("status") in ["completed", "failed"]:
+                            break
+                    
+                    await asyncio.sleep(0.1)
+            finally:
+                await pubsub.unsubscribe(f"task_updates:{task_id}")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"  # Disable buffering for Nginx/Cloudflare
+        }
     )
 
 
