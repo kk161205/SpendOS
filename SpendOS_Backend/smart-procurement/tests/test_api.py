@@ -12,49 +12,6 @@ import time
 from app.main import app
 
 
-# ── Fixtures ───────────────────────────────────────────────────────────────────
-
-@pytest_asyncio.fixture(scope="session")
-async def client():
-    """Async HTTP client connected to the FastAPI test app with cookie support."""
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        yield ac
-
-
-@pytest_asyncio.fixture(scope="session")
-async def authenticated_client(client: AsyncClient):
-    """Register a test user and ensure the client has the auth cookie and headers."""
-    timestamp = int(time.time() * 1000)
-    email = f"test{timestamp}@example.com"
-    password = "StrongP@ss123"
-    
-    # 1. Register
-    await client.post("/api/auth/register", json={
-        "email": email,
-        "password": password,
-        "full_name": "Test User",
-    })
-    
-    # 2. Login (This sets the 'access_token' cookie in the client)
-    resp = await client.post("/api/auth/token", data={
-        "username": email,
-        "password": password,
-    })
-    
-    # Also set Authorization header as a backup (more robust for ASGITransport tests)
-    token_with_prefix = resp.cookies.get("access_token")
-    if token_with_prefix:
-        client.headers.update({"Authorization": token_with_prefix.strip('"')})
-        
-    # Extracted from the new CSRF process, update client headers to circumvent the 403 Forbidden CSRF protection
-    csrf_cookie = resp.cookies.get("csrf_token")
-    if csrf_cookie:
-        client.headers.update({"X-CSRF-Token": csrf_cookie.strip('"')})
-    
-    return client
-
-
 # ── Health Check ───────────────────────────────────────────────────────────────
 
 class TestHealth:

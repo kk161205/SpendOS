@@ -14,6 +14,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.pool import NullPool
+from httpx import AsyncClient, ASGITransport
 
 # Now import the app
 from app.database import Base, get_db
@@ -48,7 +49,7 @@ async def test_engine():
     
     return engine
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session")
 async def db_session(test_engine):
     """Yield a database session for each test case."""
     session_factory = async_sessionmaker(
@@ -57,11 +58,9 @@ async def db_session(test_engine):
     async with session_factory() as session:
         yield session
 
-@pytest_asyncio.fixture
+@pytest_asyncio.fixture(scope="session")
 async def client(db_session):
     """Yield an AsyncClient for FastAPI testing."""
-    from httpx import AsyncClient, ASGITransport
-    
     # Override get_db dependency
     async def _get_test_db():
         yield db_session
@@ -75,3 +74,35 @@ async def client(db_session):
         yield ac
     
     app.dependency_overrides.clear()
+
+@pytest_asyncio.fixture(scope="session")
+async def authenticated_client(client: AsyncClient):
+    """Register a test user and ensure the client has the auth cookie and headers."""
+    import time
+    timestamp = int(time.time() * 1000)
+    email = f"test{timestamp}@example.com"
+    password = "StrongP@ss123!" # Added ! for complexity if needed
+    
+    # 1. Register
+    await client.post("/api/auth/register", json={
+        "email": email,
+        "password": password,
+        "full_name": "Test User",
+    })
+    
+    # 2. Login
+    resp = await client.post("/api/auth/token", data={
+        "username": email,
+        "password": password,
+    })
+    
+    # Extract cookies/headers
+    token = resp.cookies.get("access_token")
+    if token:
+        client.headers.update({"Authorization": token.strip('"')})
+        
+    csrf = resp.cookies.get("csrf_token")
+    if csrf:
+        client.headers.update({"X-CSRF-Token": csrf.strip('"')})
+    
+    return client
