@@ -5,7 +5,7 @@ python-multipart==0.0.9
 
 # LangGraph & LangChain
 langgraph==0.3.34
-langchain-core==0.3.40
+langchain-core==0.3.49
 langchain-groq==0.3.2
 
 # Database (async only — PostgreSQL via asyncpg)
