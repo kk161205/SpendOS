@@ -35,6 +35,7 @@ export const AuthProvider = ({ children }) => {
       // Ignore logout errors
     }
     localStorage.removeItem("user");
+    localStorage.removeItem("csrf_token");
     setUser(null);
     setIsAuthenticated(false);
   }, []);
@@ -44,6 +45,9 @@ export const AuthProvider = ({ children }) => {
       const data = await authService.login(email, password);
       setUser(data.user);
       localStorage.setItem("user", JSON.stringify(data.user));
+      if (data.csrf_token) {
+        localStorage.setItem("csrf_token", data.csrf_token);
+      }
       setIsAuthenticated(true);
       return { success: true };
     } catch (error) {

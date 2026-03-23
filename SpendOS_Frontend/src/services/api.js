@@ -6,11 +6,20 @@ export const API_BASE_URL =
 const api = axios.create({
   baseURL: API_BASE_URL,
   withCredentials: true,
-  xsrfCookieName: 'csrf_token',
-  xsrfHeaderName: 'X-CSRF-Token',
   headers: {
     "Content-Type": "application/json",
   },
+});
+
+// Request interceptor to attach cross-origin CSRF token
+api.interceptors.request.use((config) => {
+  if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
+    const csrfToken = localStorage.getItem('csrf_token');
+    if (csrfToken) {
+      config.headers['X-CSRF-Token'] = csrfToken;
+    }
+  }
+  return config;
 });
 
 // Response interceptor for generic error handling and 401s

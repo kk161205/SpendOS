@@ -39,6 +39,7 @@ class RegisterRequest(BaseModel):
 
 class TokenResponse(BaseModel):
     user: dict
+    csrf_token: str | None = None
 
 
 @router.post("/register", status_code=status.HTTP_201_CREATED)
@@ -123,7 +124,7 @@ async def login(
         max_age=settings.access_token_expire_minutes * 60,
     )
 
-    return {"user": {"email": user.email, "full_name": user.full_name}}
+    return {"user": {"email": user.email, "full_name": user.full_name}, "csrf_token": csrf_token}
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -171,7 +172,7 @@ async def refresh_token(
         max_age=settings.access_token_expire_minutes * 60,
     )
     
-    return {"user": {"email": user.email, "full_name": user.full_name}}
+    return {"user": {"email": user.email, "full_name": user.full_name}, "csrf_token": csrf_token}
 
 
 @router.post("/logout")
