@@ -52,8 +52,11 @@ async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWork
                 risk_breakdown={},
             )
 
-    tasks = [_safe_analyze(vendor) for vendor in state.enriched_vendors]
-    state.scored_vendors = await asyncio.gather(*tasks)
+    scored_vendors = []
+    for vendor in state.enriched_vendors:
+        res = await _safe_analyze(vendor)
+        scored_vendors.append(res)
+    state.scored_vendors = scored_vendors
     
     logger.info(f"[risk_analysis] Scored risk for {len(state.scored_vendors)} vendors.")
     return state

@@ -48,8 +48,11 @@ async def reliability_analysis_node(state: ProcurementWorkflowState) -> Procurem
             sv.reliability_breakdown = {}
         return sv
 
-    tasks = [_safe_analyze(v) for v in state.enriched_vendors]
-    state.scored_vendors = list(await asyncio.gather(*tasks))
+    scored_vendors = []
+    for v in state.enriched_vendors:
+        res = await _safe_analyze(v)
+        scored_vendors.append(res)
+    state.scored_vendors = scored_vendors
 
     logger.info(f"[reliability_analysis] Completed for {len(state.scored_vendors)} vendors.")
     return state

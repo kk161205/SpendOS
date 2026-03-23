@@ -30,9 +30,14 @@ async def vendor_enrichment_node(state: ProcurementWorkflowState) -> Procurement
     """
     state.current_node = "vendor_enrichment"
 
-    # Process all vendors in parallel
-    tasks = [_enrich_vendor(vendor) for vendor in state.vendors]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    # Process vendors sequentially to avoid rate limits
+    results = []
+    for vendor in state.vendors:
+        try:
+            res = await _enrich_vendor(vendor)
+            results.append(res)
+        except Exception as e:
+            results.append(e)
 
     enriched = []
     for i, res in enumerate(results):

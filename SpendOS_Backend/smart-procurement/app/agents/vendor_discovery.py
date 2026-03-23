@@ -86,11 +86,14 @@ async def _search_vendors_online(req) -> List[dict]:
         f"top {req.product_category} manufacturers {req.product_name}",
     ]
 
-    # Fire all queries concurrently; each has its own timeout
-    query_results = await asyncio.gather(
-        *[_run_single_query(q) for q in queries],
-        return_exceptions=True,
-    )
+    # Fire all queries sequentially to avoid rate limits
+    query_results = []
+    for q in queries:
+        try:
+            res = await _run_single_query(q)
+            query_results.append(res)
+        except Exception as e:
+            query_results.append(e)
 
     # Merge results, skipping any that raised exceptions
     all_results = []
