@@ -13,7 +13,8 @@ export const procurementService = {
 
   async getHistory() {
     const response = await api.get('/procurement/history');
-    return response.data;
+    // The backend returns a paginated response { total, items }
+    return response.data.items || response.data;
   },
 
   async deleteSession(sessionId) {
