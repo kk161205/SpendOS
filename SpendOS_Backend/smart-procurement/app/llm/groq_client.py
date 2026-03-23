@@ -45,16 +45,27 @@ def wait_retry_after_or_exponential():
     return _wait
 
 
+import threading
+
+_llm_cache = {}
+_llm_cache_lock = threading.Lock()
+
 def get_groq_llm(model_name: str, temperature: float = 0.1) -> ChatGroq:
     """
-    Instantiate a ChatGroq LLM for the given model.
+    Instantiate or retrieve a cached ChatGroq LLM for the given model and temperature.
+    Uses a thread-safe dictionary to avoid reinitialization overhead on every call.
     """
-    return ChatGroq(
-        model=model_name,
-        temperature=temperature,
-        max_tokens=settings.llm_max_tokens,
-        groq_api_key=settings.groq_api_key,
-    )
+    cache_key = (model_name, temperature)
+    
+    with _llm_cache_lock:
+        if cache_key not in _llm_cache:
+            _llm_cache[cache_key] = ChatGroq(
+                model=model_name,
+                temperature=temperature,
+                max_tokens=settings.llm_max_tokens,
+                groq_api_key=settings.groq_api_key,
+            )
+        return _llm_cache[cache_key]
 
 
 @retry(
