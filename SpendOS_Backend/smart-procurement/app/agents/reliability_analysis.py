@@ -89,7 +89,12 @@ async def _analyze_reliability(vendor: VendorData, req) -> tuple:
     )
     # Strip markdown fences if present
     clean = clean_llm_output(response)
-    data = json.loads(clean)
+    try:
+        data = json.loads(clean)
+    except Exception as e:
+        logger.error(f"[reliability_analysis] JSON parsing error for {vendor.name}: {e}")
+        logger.debug(f"[reliability_analysis] Raw response: {response}")
+        raise
 
     rel_score = max(0.0, min(100.0, float(data.get("reliability_score", 50))))
     reasoning = data.get("reasoning", "")

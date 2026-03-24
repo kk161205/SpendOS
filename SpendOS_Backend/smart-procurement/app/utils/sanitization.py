@@ -48,23 +48,17 @@ def sanitize_for_llm(text: str | None) -> str | None:
 
 def clean_llm_output(text: str) -> str:
     """
-    Unified utility to strip markdown fences (```json ... ```) 
-    and extra whitespace from LLM string outputs.
+    Robust utility to extract the primary JSON object from LLM string outputs.
+    Handles markdown fences, conversational prefix/suffix text, and whitespace.
     """
     if not text:
         return ""
-        
-    clean = text.strip()
-    
-    # Handle markdown code blocks
-    if clean.startswith("```"):
-        # Find the first newline to skip the language identifier (e.g. ```json)
-        first_newline = clean.find("\n")
-        if first_newline != -1:
-            clean = clean[first_newline + 1:]
-        
-        # Remove closing fence if it exists
-        if clean.endswith("```"):
-            clean = clean[:-3]
-            
-    return clean.strip()
+
+    # Use regex to find the content between the first { and the last }
+    # re.DOTALL is critical to match across newlines.
+    match = re.search(r'(\{.*\})', text, re.DOTALL)
+    if match:
+        return match.group(1).strip()
+
+    # Fallback to simple strip if no braces found (likely to fail json.loads, but safe)
+    return text.strip()
