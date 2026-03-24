@@ -20,7 +20,7 @@ const getCookie = (name) => {
 // Request interceptor to attach cross-origin CSRF token
 api.interceptors.request.use((config) => {
   if (['post', 'put', 'patch', 'delete'].includes(config.method?.toLowerCase())) {
-    const csrfToken = getCookie('csrf_token');
+    const csrfToken = getCookie('csrf_token') || localStorage.getItem('csrf_token');
     if (csrfToken) {
       config.headers['X-CSRF-Token'] = csrfToken;
     }

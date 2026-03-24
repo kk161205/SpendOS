@@ -8,9 +8,11 @@ import bcrypt
 import jwt
 from jwt.exceptions import PyJWTError as JWTError
 from fastapi import Depends, HTTPException, status, Request
+import logging
 from app.config import get_settings
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -90,9 +92,10 @@ async def get_current_user(request: Request) -> dict:
         csrf_header = request.headers.get("X-CSRF-Token")
         
         if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
+            logger.warning(f"[auth] CSRF check failed: cookie present={bool(csrf_cookie)}, header present={bool(csrf_header)}")
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="CSRF token validation failed"
+                detail="CSRF token validation failed. Please log out and back in."
             )
 
     # Handle Bearer prefix
