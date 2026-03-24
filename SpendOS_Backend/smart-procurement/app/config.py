@@ -72,7 +72,7 @@ class Settings(BaseSettings):
     llm_temperature_explanation: float = 0.4
 
     # LLM Max Tokens
-    llm_max_tokens: int = 2048
+    llm_max_tokens: int = 4096
 
     @model_validator(mode="after")
     def _validate_required_secrets(self) -> "Settings":

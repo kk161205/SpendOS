@@ -206,7 +206,12 @@ async def _extract_vendors_from_results(
         # Strip markdown fences if present (e.g. ```json ... ```)
         clean = clean_llm_output(response)
 
-        vendor_dicts = json.loads(clean)
+        try:
+            vendor_dicts = json.loads(clean)
+        except Exception as e:
+            logger.error(f"[vendor_discovery] JSON parse error: {e}")
+            logger.debug(f"[vendor_discovery] Raw response: {response}")
+            return []
 
         if not isinstance(vendor_dicts, list):
             logger.warning("[vendor_discovery] LLM returned non-list, wrapping.")

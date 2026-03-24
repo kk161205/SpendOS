@@ -48,17 +48,18 @@ def sanitize_for_llm(text: str | None) -> str | None:
 
 def clean_llm_output(text: str) -> str:
     """
-    Robust utility to extract the primary JSON object from LLM string outputs.
+    Robust utility to extract the primary JSON object or array from LLM string outputs.
     Handles markdown fences, conversational prefix/suffix text, and whitespace.
     """
     if not text:
         return ""
 
-    # Use regex to find the content between the first { and the last }
-    # re.DOTALL is critical to match across newlines.
-    match = re.search(r'(\{.*\})', text, re.DOTALL)
+    # Use regex to find the primary JSON block (object or array)
+    # We look for the first {/[ and match to the last }/]
+    # re.DOTALL allows matching across newlines.
+    match = re.search(r'(\{.*\}|\[.*\])', text, re.DOTALL)
     if match:
         return match.group(1).strip()
 
-    # Fallback to simple strip if no braces found (likely to fail json.loads, but safe)
+    # Fallback to simple strip if no markers found
     return text.strip()
