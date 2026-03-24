@@ -222,44 +222,11 @@ async def export_procurement_results(
             detail="Session not found or access denied"
         )
     
-    # 2. Generate CSV
-    output = io.StringIO()
-    writer = csv.writer(output)
-    
-    # Headers - Session Metadata
-    writer.writerow(["Procurement Analysis Report"])
-    writer.writerow(["Product Name", session.product_name])
-    writer.writerow(["Category", session.category])
-    writer.writerow(["Budget (USD)", session.budget or "N/A"])
-    writer.writerow(["Shipping Destination", session.shipping_destination or "N/A"])
-    writer.writerow(["Payment Terms", session.payment_terms or "N/A"])
-    writer.writerow(["Incoterms", session.incoterms or "N/A"])
-    writer.writerow(["Deadline (Days)", session.delivery_deadline_days or "N/A"])
-    writer.writerow(["Date", session.created_at.strftime("%Y-%m-%d %H:%M:%S")])
-    writer.writerow([])
-    
-    # AI Explanation
-    writer.writerow(["AI Recommendation Summary"])
-    writer.writerow([session.ai_explanation or "No explanation available"])
-    writer.writerow([])
-    
-    # Vendor Results
-    writer.writerow(["Vendor List"])
-    writer.writerow(["Rank", "Vendor Name", "Final Score", "Reliability Score", "Risk Score", "Cost Score", "Reasoning"])
-    
-    for v in session.vendor_results:
-        writer.writerow([
-            v.rank,
-            v.vendor_name,
-            f"{v.final_score:.2f}",
-            f"{v.reliability_score:.2f}",
-            f"{v.risk_score:.2f}",
-            f"{v.cost_score:.2f}",
-            v.explanation or ""
-        ])
+    # 2. Generate CSV using utility
+    from app.utils.export import ProcurementExporter
+    output = ProcurementExporter.generate_csv(session)
     
     # 3. Stream back
-    output.seek(0)
     # Sanitize filename
     safe_product_name = "".join([c if c.isalnum() else "_" for c in session.product_name])
     filename = f"procurement_results_{safe_product_name}_{session_id[:8]}.csv"

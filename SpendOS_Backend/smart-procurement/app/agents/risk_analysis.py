@@ -11,20 +11,7 @@ from app.utils.sanitization import clean_llm_output
 logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.RISK_ANALYSIS)
 
-SYSTEM_PROMPT = """You are a procurement risk analyst. Given a vendor profile and user requirements,
-provide a detailed risk assessment including commercial term mismatch. Return ONLY valid JSON:
-{
-  "risk_score": <float 0-100, where 0=no risk 100=extreme risk>,
-  "reasoning": "<2-3 sentence explanation>",
-  "breakdown": {
-    "financial_risk": <float 0-100>,
-    "news_sentiment_risk": <float 0-100>,
-    "compliance_risk": <float 0-100>,
-    "operational_maturity_risk": <float 0-100>,
-    "commercial_term_risk": <float 0-100>,
-    "logistics_risk": <float 0-100>
-  }
-}"""
+from app.agents.prompts import RISK_ANALYSIS_SYSTEM as SYSTEM_PROMPT
 
 
 async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
@@ -55,11 +42,9 @@ async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWork
                 risk_breakdown={},
             )
 
-    scored_vendors = []
-    for vendor in state.enriched_vendors:
-        res = await _safe_analyze(vendor)
-        scored_vendors.append(res)
-    state.scored_vendors = scored_vendors
+    # Run all analyses in parallel using asyncio.gather
+    tasks = [_safe_analyze(vendor) for vendor in state.enriched_vendors]
+    state.scored_vendors = await asyncio.gather(*tasks)
     
     logger.info(f"[risk_analysis] Scored risk for {len(state.scored_vendors)} vendors.")
     return state

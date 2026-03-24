@@ -18,32 +18,7 @@ logger = logging.getLogger(__name__)
 settings = get_settings()
 MODEL_CFG = get_model_for_node(WorkflowNode.VENDOR_DISCOVERY)
 
-SYSTEM_PROMPT = """You are a procurement data extraction specialist. Given web search results 
-about suppliers/vendors, extract structured vendor information. Return ONLY a valid JSON array 
-of vendor objects. Each object MUST have these keys:
-[
-  {
-    "name": "<company name>",
-    "category": "<product category>",
-    "country": "<country or 'Unknown'>",
-    "website": "<url or null>",
-    "description": "<1-2 sentence description of what they sell>",
-    "years_in_business": <integer estimate or null>,
-    "annual_revenue_usd": <float estimate or null>,
-    "employee_count": <integer estimate or null>,
-    "is_publicly_traded": <true/false>,
-    "certifications": ["<cert1>", "<cert2>"],
-    "base_price_usd": <float estimate or null>,
-    "price_per_unit_usd": <float estimate or null>,
-    "minimum_order_quantity": <integer estimate or null>,
-    "lead_time_days": <integer estimate or null>,
-    "average_rating": <float 0-5 estimate or null>,
-    "review_count": <integer estimate or null>,
-    "on_time_delivery_rate": <float 0-100 estimate or null>
-  }
-]
-Estimate values based on company size, location, and industry standards if exact data 
-is not available. Return at least 3 vendors and at most 8. No markdown, no explanation."""
+from app.agents.prompts import VENDOR_DISCOVERY_SYSTEM as SYSTEM_PROMPT
 
 
 async def vendor_discovery_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:

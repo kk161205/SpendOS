@@ -11,19 +11,7 @@ from app.utils.sanitization import clean_llm_output
 logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.RELIABILITY_ANALYSIS)
 
-SYSTEM_PROMPT = """You are a vendor reliability analyst. Evaluate the vendor's operational
-reliability and commercial alignment with user constraints. Return ONLY valid JSON:
-{
-  "reliability_score": <float 0-100, where 100=extremely reliable>,
-  "reasoning": "<2-3 sentence explanation>",
-  "breakdown": {
-    "years_in_business_score": <float 0-100>,
-    "certifications_score": <float 0-100>,
-    "customer_satisfaction_score": <float 0-100>,
-    "delivery_performance_score": <float 0-100>,
-    "commercial_alignment_score": <float 0-100>
-  }
-}"""
+from app.agents.prompts import RELIABILITY_ANALYSIS_SYSTEM as SYSTEM_PROMPT
 
 
 async def reliability_analysis_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:
@@ -49,8 +37,9 @@ async def reliability_analysis_node(state: ProcurementWorkflowState) -> Procurem
             sv.reliability_reasoning = "Heuristic fallback due to LLM error."
             sv.reliability_breakdown = {}
 
-    for sv in state.scored_vendors:
-        await _safe_analyze(sv)
+    # Run all analyses in parallel using asyncio.gather
+    tasks = [_safe_analyze(sv) for sv in state.scored_vendors]
+    await asyncio.gather(*tasks)
 
     logger.info(f"[reliability_analysis] Completed for {len(state.scored_vendors)} vendors.")
     return state

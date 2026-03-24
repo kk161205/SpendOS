@@ -9,10 +9,7 @@ from app.utils.sanitization import clean_llm_output
 logger = logging.getLogger(__name__)
 MODEL_CFG = get_model_for_node(WorkflowNode.EXPLANATION)
 
-SYSTEM_PROMPT = """You are a procurement advisor. Write a concise, professional 
-procurement recommendation report (3-4 paragraphs) based on the analysis results. 
-Explain why the top vendor was selected, highlight key risks and reliability factors, 
-and mention cost considerations. Write clearly for a business audience."""
+from app.agents.prompts import EXPLANATION_SYSTEM as SYSTEM_PROMPT
 
 
 async def explanation_node(state: ProcurementWorkflowState) -> ProcurementWorkflowState:

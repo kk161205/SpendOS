@@ -105,6 +105,20 @@ async def health_check(
         status["services"]["database"] = "down"
         status["status"] = "degraded"
 
+    # 2. Test ARQ/Redis connection
+    if hasattr(request.app.state, "arq_pool"):
+        try:
+            # Simple check to see if the pool is responsive
+            await request.app.state.arq_pool.all_job_definitions()
+            status["services"]["redis"] = "up"
+        except Exception as e:
+            logger.error(f"Health check: Redis/ARQ connection failed: {e}")
+            status["services"]["redis"] = "down"
+            status["status"] = "degraded"
+    else:
+        status["services"]["redis"] = "not_initialized"
+        status["status"] = "degraded"
+
     return status
 
 @app.get("/", tags=["Info"])
