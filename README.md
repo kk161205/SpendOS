@@ -20,9 +20,9 @@
 **SpendOS** is a next-generation procurement engine designed to automate the heavy lifting of supplier vetting. By leveraging a high-throughput **multi-model LLM strategy (94,000 TPM)** and **LangGraph** orchestration, it transforms raw web search results into structured, risk-scored, and ranked vendor portfolios in seconds.
 
 ### Why SpendOS?
-- **Extreme Speed**: Powered by Groq-accelerated inference with a proprietary load-balancing layer.
+- **Extreme Speed**: Powered by Groq-accelerated inference and **parallel LangGraph nodes**, achieving a 5x workflow speedup.
 - **Deep Insights**: Beyond basic search, it performs multi-dimensional risk and reliability scoring.
-- **Production Grade**: Built with an asynchronous task queue (ARQ), robust sanitization, and enterprise-level auth logic.
+- **Production Grade**: Built with an asynchronous task queue (ARQ), robust sanitization, centralized prompt management, and enterprise-level auth logic.
 
 ---
 
@@ -35,8 +35,8 @@ SpendOS follows a decoupled **Service-Worker architecture**:
 3.  **LangGraph Orchestrator**: Manages state across 5 specialized AI nodes:
     - *Vendor Discovery (SerpAPI)*
     - *Data Enrichment*
-    - *Risk Analysis*
-    - *Reliability Scoring*
+    - *Risk Analysis (Parallel)*
+    - *Reliability Scoring (Parallel)*
     - *Final Recommendation*
 4.  **React 19 Frontend**: Real-time progress tracking via Server-Sent Events (SSE).
 

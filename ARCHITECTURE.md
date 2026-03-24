@@ -28,7 +28,7 @@ SpendOS is designed as a **decoupled asynchronous platform** consisting of four 
 - **Workflow Steps**:
   1. **Discovery Node**: Uses SerpAPI for live web searching.
   2. **Enrichment Node**: Synthesizes search snippets into structured vendor profiles.
-  3. **Risk/Reliability Nodes**: Parallelized scoring based on historical and commercial markers.
+  3. **Risk/Reliability Nodes**: Parallelized scoring using `asyncio.gather` for near-instant analysis across all discovered vendors.
   4. **Explanation Node**: Generates the final executive summary for the user.
 - **Load Balancing**: Distributes token usage across multiple models (Llama 3.3, Qwen 32B, Llama 3.1) to achieve a combined **94,000 TPM** throughput.
 
