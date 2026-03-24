@@ -1,14 +1,21 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ShoppingCart, Calendar, TrendingUp, AlertTriangle, CheckCircle, ChevronRight, BarChart2 } from 'lucide-react';
+import { ShoppingCart, Calendar, TrendingUp, AlertTriangle, CheckCircle, ChevronRight, BarChart2, Trash2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
-export default function SessionCard({ session }) {
+export default function SessionCard({ session, onDelete }) {
   const navigate = useNavigate();
 
   // Handle click to view results
   const handleView = () => {
     navigate(`/dashboard/results`, { state: { session } });
+  };
+
+  const handleDelete = (e) => {
+    e.stopPropagation();
+    if (window.confirm('Are you sure you want to delete this analysis?')) {
+      onDelete();
+    }
   };
 
   // Safe formatting for scores
@@ -48,6 +55,15 @@ export default function SessionCard({ session }) {
                 {dateStr}
               </div>
             </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={handleDelete}
+              className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors z-10"
+              title="Delete analysis"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           </div>
         </div>
 
