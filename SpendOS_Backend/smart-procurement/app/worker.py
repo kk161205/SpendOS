@@ -98,19 +98,6 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                     cost_breakdown=sv.cost_breakdown,
                 ).model_dump())
 
-            final_result = ProcurementAnalysisResponse(
-                request_id=task_id,
-                product_name=payload["product_name"],
-                product_category=payload["product_category"],
-                status="completed",
-                ranked_vendors=vendor_score_responses,
-                ai_explanation=final_state.ai_explanation,
-                total_vendors_evaluated=len(final_state.ranked_vendors),
-                scoring_weights_used=payload.get("scoring_weights", {}),
-            ).model_dump()
-
-            # Skipping explicit Redis cache write (Migrating to Postgres Caching later)
-
             # 4. Save to historical session for the user
             proc_session = ProcurementSession(
                 user_id=user_id,
@@ -126,7 +113,7 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                 status="completed"
             )
             db.add(proc_session)
-            await db.flush()
+            await db.flush() # Ensure ID is generated
 
             for vendor_score in final_state.ranked_vendors:
                 vr = VendorResult(
@@ -141,6 +128,19 @@ async def run_procurement_task(ctx: dict, *, task_id: str, payload: dict, user_i
                     explanation=vendor_score.risk_reasoning,
                 )
                 db.add(vr)
+
+            # 5. Build final result (now including the session_id)
+            final_result = ProcurementAnalysisResponse(
+                request_id=task_id,
+                session_id=str(proc_session.id),
+                product_name=payload["product_name"],
+                product_category=payload["product_category"],
+                status="completed",
+                ranked_vendors=vendor_score_responses,
+                ai_explanation=final_state.ai_explanation,
+                total_vendors_evaluated=len(final_state.ranked_vendors),
+                scoring_weights_used=payload.get("scoring_weights", {}),
+            ).model_dump()
 
             # Update the original task status to completed
             task_query = await db.execute(select(ProcurementTask).where(ProcurementTask.id == task_id))

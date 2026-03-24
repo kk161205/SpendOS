@@ -34,7 +34,7 @@ export const SessionProvider = ({ children }) => {
 
   const addSession = (sessionData) => {
     const newSession = {
-      id: sessionData.request_id || crypto.randomUUID(),
+      id: sessionData.session_id || sessionData.request_id || crypto.randomUUID(),
       timestamp: new Date().toISOString(),
       product_name: sessionData.product_name,
       category: sessionData.product_category || 'General',

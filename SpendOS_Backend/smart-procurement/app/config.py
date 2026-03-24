@@ -58,11 +58,11 @@ class Settings(BaseSettings):
     # Each node uses a different model to distribute token usage
     # and avoid per-model rate limits.
     # ─────────────────────────────────────────────────────────────────────────
-    llm_vendor_discovery: str = "llama-3.1-8b-instant"
-    llm_vendor_enrichment: str = "llama-3.1-8b-instant"
-    llm_risk_analysis: str = "llama-3.1-8b-instant"
+    llm_vendor_discovery: str = "llama-3.3-70b-versatile"
+    llm_vendor_enrichment: str = "groq/compound"
+    llm_risk_analysis: str = "qwen/qwen3-32b"
     llm_reliability_analysis: str = "llama-3.1-8b-instant"
-    llm_explanation: str = "llama-3.1-8b-instant"
+    llm_explanation: str = "llama-3.3-70b-versatile"
 
     # LLM Temperatures
     llm_temperature_discovery: float = 0.1

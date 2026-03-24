@@ -84,6 +84,7 @@ class VendorScoreResponse(BaseModel):
 class ProcurementAnalysisResponse(BaseModel):
     """Full response from the procurement analysis endpoint."""
     request_id: str
+    session_id: Optional[str] = None
     product_name: str
     product_category: str
     status: str
