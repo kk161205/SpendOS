@@ -60,12 +60,16 @@ class Settings(BaseSettings):
     # LLM Model Routing (Groq)
     # Each node uses a different model to distribute token usage
     # and avoid per-model rate limits.
+    #
+    # WARNING: groq/compound routes to gpt-oss-120b (8K TPM on free tier)
+    # and will cause 429s. Stick to native Groq models listed at
+    # https://console.groq.com/docs/models
     # ─────────────────────────────────────────────────────────────────────────
-    llm_vendor_discovery: str = "llama-3.3-70b-versatile"
-    llm_vendor_enrichment: str = "groq/compound"
-    llm_risk_analysis: str = "qwen/qwen3-32b"
-    llm_reliability_analysis: str = "llama-3.1-8b-instant"
-    llm_explanation: str = "llama-3.3-70b-versatile"
+    llm_vendor_discovery: str = "llama-3.3-70b-versatile"        # 12K TPM — reasoning-heavy
+    llm_vendor_enrichment: str = "meta-llama/llama-4-scout-17b-16e-instruct"  # 30K TPM — replaces compound
+    llm_risk_analysis: str = "llama-3.1-8b-instant"              # 128K TPM — replaces qwen3-32b
+    llm_reliability_analysis: str = "llama-3.1-8b-instant"       # 128K TPM — fast analysis
+    llm_explanation: str = "llama-3.3-70b-versatile"             # 12K TPM — quality summary
 
     # LLM Temperatures
     llm_temperature_discovery: float = 0.1
