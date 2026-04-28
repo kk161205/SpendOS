@@ -200,8 +200,8 @@ async def _extract_vendors_from_results(
             except Exception as e:
                 logger.warning(f"[vendor_discovery] Failed to parse vendor {i}: {e}")
 
-        # Cap at 3 vendors to drastically speed up analysis and reduce token usage
-        return vendors[:3]
+        # Cap at 5 vendors to balance comprehensive analysis and token usage
+        return vendors[:5]
 
     except json.JSONDecodeError as e:
         logger.error(f"[vendor_discovery] JSON parse error: {e}. Raw response: {response[:500] if 'response' in dir() else 'N/A'}")

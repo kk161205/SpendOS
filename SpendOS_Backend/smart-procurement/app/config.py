@@ -71,8 +71,8 @@ class Settings(BaseSettings):
     # ─────────────────────────────────────────────────────────────────────────
     llm_vendor_discovery: str = "llama-3.3-70b-versatile"                     # ~12K TPM — best reasoning
     llm_vendor_enrichment: str = "llama-3.1-8b-instant"                       # Massive 128K TPM limit
-    llm_risk_analysis: str = "llama-3.1-8b-instant"                           # Massive 128K TPM limit
-    llm_reliability_analysis: str = "llama-3.1-8b-instant"                    # Massive 128K TPM limit
+    llm_risk_analysis: str = "qwen/qwen3-32b"                                 # Separate bucket, great reasoning
+    llm_reliability_analysis: str = "meta-llama/llama-4-scout-17b-16e-instruct"  # Separate bucket
     llm_explanation: str = "llama-3.3-70b-versatile"                          # ~12K TPM — reused (runs last, bucket refilled)
 
     # LLM Temperatures
