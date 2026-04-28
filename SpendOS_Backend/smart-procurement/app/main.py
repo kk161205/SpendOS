@@ -1,3 +1,10 @@
+"""SpendOS — FastAPI application entry point.
+
+Sets up middleware (CORS, security headers, rate limiting, proxy headers),
+registers API routers, and manages the lifecycle of external resources
+(Redis/ARQ pool).
+"""
+
 import logging
 from contextlib import asynccontextmanager
 
@@ -7,6 +14,7 @@ from arq.connections import RedisSettings
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 from starlette.middleware.base import BaseHTTPMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
@@ -14,6 +22,8 @@ from app.api.auth_routes import router as auth_router
 from app.api.procurement_routes import router as procurement_router
 from app.config import get_settings
 from app.database import engine
+from app.middleware.rate_limit import limiter, _rate_limit_exceeded_handler
+from app.middleware.security_headers import SecurityHeadersMiddleware
 
 # ── Logging Configuration ─────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO)
@@ -54,10 +64,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware ─────────────────────────────────────────────────────────────────
-
-# 1. CORS
+# ── Middleware (applied in REVERSE order — last added runs first) ──────────────
 settings = get_settings()
+
+# 1. CORS — must be the outermost middleware to handle preflight requests
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
@@ -67,7 +77,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 2. Proxy Headers (for Render/Cloudflare)
+# 2. Security Headers (X-Content-Type-Options, X-Frame-Options, HSTS, etc.)
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 3. Rate Limiting (SlowAPI — uses Redis as backend)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# 4. Proxy Headers (for Render/Cloudflare reverse proxies)
 app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.trusted_hosts_list)
 
 

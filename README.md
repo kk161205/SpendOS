@@ -91,10 +91,11 @@ Key environment variables required in `SpendOS_Backend/smart-procurement/.env`:
 | Variable | Description |
 | :--- | :--- |
 | `GROQ_API_KEY` | High-speed LLM inference key. |
-| `SERPAPI_API_KEY` | Web search tool key for vendor discovery. |
+| `SERP_API_KEY` | Web search tool key for vendor discovery. |
 | `SECRET_KEY` | Secure string for JWT/CSRF signing. |
-| `DATABASE_URL` | Asyncpg connection string for PostgreSQL. |
+| `DATABASE_URL` | Asyncpg connection string for PostgreSQL (e.g. Neon). |
 | `REDIS_URL` | Redis DSN for task queue and pub/sub. |
+| `ALLOWED_ORIGINS` | Comma-separated list of allowed CORS origins (optional — has defaults). |
 
 ---
 
@@ -110,12 +111,31 @@ See [API.md](./API.md) for detailed payload examples.
 
 ## ☁️ Deployment
 
-SpendOS is optimized for **Render** using Blueprint Specs. 
+SpendOS is production-ready on **Render** (backend) + **Vercel** (frontend) + **Neon** (PostgreSQL).
+
+> For the full step-by-step deployment guide, see **[DEPLOYMENT.md](./DEPLOYMENT.md)**.
+
+### Quick Start (Render Blueprint)
 1. Link your repo to Render.
 2. It will automatically detect `render.yaml`.
 3. Fill in your Secrets and click **Apply**.
+4. Run `alembic upgrade head` from Render's Shell tab.
+
+---
+
+## 🔒 Security
+
+SpendOS implements enterprise-grade security including:
+- **JWT authentication** with HttpOnly cookies and CSRF double-submit protection
+- **Rate limiting** (30 req/min per user) via SlowAPI
+- **Security headers** (HSTS, X-Frame-Options, X-XSS-Protection, etc.)
+- **Password hashing** with bcrypt + salt
+- **User-scoped authorization** on all data queries
+
+For details, see the Security Architecture section in [ARCHITECTURE.md](./ARCHITECTURE.md).
 
 ---
 
 ## 📄 License
 This project is licensed under the MIT License.
+

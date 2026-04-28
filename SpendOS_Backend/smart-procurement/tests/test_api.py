@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import time
 
 from app.main import app
+from tests.conftest import TEST_PASSWORD
 
 
 # ── Health Check ───────────────────────────────────────────────────────────────
@@ -43,7 +44,7 @@ class TestAuth:
         timestamp = int(time.time() * 1000)
         resp = await client.post("/api/auth/register", json={
             "email": f"new{timestamp}@example.com",
-            "password": "StrongP@ss123",
+            "password": TEST_PASSWORD,
             "full_name": "New User",
         })
         assert resp.status_code == 201
@@ -53,7 +54,7 @@ class TestAuth:
     async def test_duplicate_email_rejected(self, client):
         timestamp = int(time.time() * 1000)
         email = f"dup{timestamp}@example.com"
-        payload = {"email": email, "password": "StrongP@ss123", "full_name": "Dup"}
+        payload = {"email": email, "password": TEST_PASSWORD, "full_name": "Dup"}
         await client.post("/api/auth/register", json=payload)
         resp = await client.post("/api/auth/register", json=payload)
         assert resp.status_code == 400
@@ -62,7 +63,7 @@ class TestAuth:
     async def test_login_returns_token_in_cookie(self, client):
         timestamp = int(time.time() * 1000)
         email = f"login{timestamp}@example.com"
-        password = "StrongP@ss123"
+        password = TEST_PASSWORD
         await client.post("/api/auth/register", json={
             "email": email, "password": password, "full_name": "Login Test"
         })
@@ -77,7 +78,7 @@ class TestAuth:
         timestamp = int(time.time() * 1000)
         email = f"wrongpw{timestamp}@example.com"
         await client.post("/api/auth/register", json={
-            "email": email, "password": "CorrectP@ss123", "full_name": "X"
+            "email": email, "password": TEST_PASSWORD, "full_name": "X"
         })
         resp = await client.post("/api/auth/token", data={
             "username": email, "password": "wrongpassword"

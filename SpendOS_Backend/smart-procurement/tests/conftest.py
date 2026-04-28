@@ -34,6 +34,11 @@ from app.database import Base, get_db
 from app.config import get_settings
 from app.main import app
 
+# ── Test Constants ─────────────────────────────────────────────────────────────
+# Centralised test credentials — avoids hardcoded strings scattered in tests.
+TEST_PASSWORD = os.environ.get("TEST_PASSWORD", "StrongP@ss123!")
+TEST_FULL_NAME = "Test User"
+
 @pytest.fixture(scope="session")
 def event_loop():
     """Create an instance of the default event loop for each test case."""
@@ -97,7 +102,7 @@ async def authenticated_client(client: AsyncClient):
     import time
     timestamp = int(time.time() * 1000)
     email = f"test{timestamp}@example.com"
-    password = "StrongP@ss123!" # Added ! for complexity if needed
+    password = TEST_PASSWORD
     
     # 1. Register
     await client.post("/api/auth/register", json={
