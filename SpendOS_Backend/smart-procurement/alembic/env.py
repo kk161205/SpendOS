@@ -20,6 +20,10 @@ config = context.config
 # Set the sqlalchemy.url from our application settings
 # Alembic's default sync engines don't like +asyncpg, so we strip it
 sync_url = settings.database_url.replace("+asyncpg", "")
+# Neon DB requires SSL — append sslmode for the sync psycopg2 driver
+if "neon.tech" in sync_url and "sslmode" not in sync_url:
+    separator = "&" if "?" in sync_url else "?"
+    sync_url += f"{separator}sslmode=require"
 config.set_main_option("sqlalchemy.url", sync_url)
 
 # Interpret the config file for Python logging.
