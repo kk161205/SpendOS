@@ -57,19 +57,23 @@ class Settings(BaseSettings):
         return [s.strip() for s in self.trusted_hosts.split(",") if s.strip()]
 
     # ─────────────────────────────────────────────────────────────────────────
-    # LLM Model Routing (Groq)
-    # Each node uses a different model to distribute token usage
-    # and avoid per-model rate limits.
+    # LLM Model Routing (Groq) — 5 UNIQUE models to maximize total TPM
     #
-    # WARNING: groq/compound routes to gpt-oss-120b (8K TPM on free tier)
-    # and will cause 429s. Stick to native Groq models listed at
-    # https://console.groq.com/docs/models
+    # Each node uses a DIFFERENT model so that parallel/sequential calls
+    # never compete for the same model's token bucket.
+    #
+    # Model selection rationale:
+    #   - Discovery: needs accurate structured extraction → 70B versatile
+    #   - Enrichment: bulk synthesis, mid-quality OK → GPT-OSS 20B
+    #   - Risk: fast parallel scoring → 8B instant (highest TPM)
+    #   - Reliability: fast parallel scoring → Llama 4 Scout (different bucket)
+    #   - Explanation: quality narrative → 70B versatile (runs last, bucket refilled)
     # ─────────────────────────────────────────────────────────────────────────
-    llm_vendor_discovery: str = "llama-3.3-70b-versatile"        # 12K TPM — reasoning-heavy
-    llm_vendor_enrichment: str = "meta-llama/llama-4-scout-17b-16e-instruct"  # 30K TPM — replaces compound
-    llm_risk_analysis: str = "llama-3.1-8b-instant"              # 128K TPM — replaces qwen3-32b
-    llm_reliability_analysis: str = "llama-3.1-8b-instant"       # 128K TPM — fast analysis
-    llm_explanation: str = "llama-3.3-70b-versatile"             # 12K TPM — quality summary
+    llm_vendor_discovery: str = "llama-3.3-70b-versatile"                     # ~12K TPM — best reasoning
+    llm_vendor_enrichment: str = "openai/gpt-oss-20b"                         # ~15K TPM — good mid-tier
+    llm_risk_analysis: str = "llama-3.1-8b-instant"                           # ~128K TPM — fastest
+    llm_reliability_analysis: str = "meta-llama/llama-4-scout-17b-16e-instruct"  # ~30K TPM — separate bucket
+    llm_explanation: str = "llama-3.3-70b-versatile"                          # ~12K TPM — reused (runs last, bucket refilled)
 
     # LLM Temperatures
     llm_temperature_discovery: float = 0.1
