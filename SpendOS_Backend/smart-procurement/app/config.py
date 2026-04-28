@@ -70,9 +70,9 @@ class Settings(BaseSettings):
     #   - Explanation: quality narrative → 70B versatile (runs last, bucket refilled)
     # ─────────────────────────────────────────────────────────────────────────
     llm_vendor_discovery: str = "llama-3.3-70b-versatile"                     # ~12K TPM — best reasoning
-    llm_vendor_enrichment: str = "openai/gpt-oss-20b"                         # ~15K TPM — good mid-tier
-    llm_risk_analysis: str = "llama-3.1-8b-instant"                           # ~128K TPM — fastest
-    llm_reliability_analysis: str = "meta-llama/llama-4-scout-17b-16e-instruct"  # ~30K TPM — separate bucket
+    llm_vendor_enrichment: str = "llama-3.1-8b-instant"                       # Massive 128K TPM limit
+    llm_risk_analysis: str = "llama-3.1-8b-instant"                           # Massive 128K TPM limit
+    llm_reliability_analysis: str = "llama-3.1-8b-instant"                    # Massive 128K TPM limit
     llm_explanation: str = "llama-3.3-70b-versatile"                          # ~12K TPM — reused (runs last, bucket refilled)
 
     # LLM Temperatures
