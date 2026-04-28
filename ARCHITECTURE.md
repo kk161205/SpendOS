@@ -4,6 +4,55 @@ This document details the internal architecture of SpendOS, outlining how it ach
 
 ---
 
+## 📐 High-Level Architecture Diagram
+
+```mermaid
+graph TB
+    subgraph Frontend["Presentation Layer (React 19 + Vite)"]
+        UI["React UI"]
+        SSE["EventSource (SSE)"]
+        CTX["Context API (Auth/Session)"]
+    end
+
+    subgraph API["API Gateway Layer (FastAPI)"]
+        CORS["CORS Middleware"]
+        SEC["Security Headers Middleware"]
+        RL["Rate Limiter (SlowAPI)"]
+        AUTH["JWT Auth (HttpOnly Cookies + CSRF)"]
+        ROUTES["API Routers (Auth / Procurement)"]
+    end
+
+    subgraph Worker["Background Processing Layer"]
+        ARQ["ARQ Worker"]
+        GRAPH["LangGraph Orchestrator"]
+    end
+
+    subgraph AI["AI Nodes (Parallel)"]
+        DISC["Vendor Discovery (SerpAPI)"]
+        ENR["Data Enrichment (Groq/Compound)"]
+        RISK["Risk Analysis (Qwen 32B)"]
+        REL["Reliability Scoring (Llama 3.1)"]
+        EXP["Explanation (Llama 3.3)"]
+    end
+
+    subgraph Storage["Data Layer"]
+        PG["PostgreSQL (Neon)"]
+        REDIS["Redis (Pub/Sub + Queue)"]
+    end
+
+    UI --> CORS --> SEC --> RL --> AUTH --> ROUTES
+    SSE --> ROUTES
+    ROUTES -->|"Enqueue Job"| REDIS
+    ARQ -->|"Poll Jobs"| REDIS
+    ARQ --> GRAPH --> AI
+    GRAPH -->|"Pub/Sub Updates"| REDIS
+    REDIS -->|"SSE Stream"| SSE
+    ARQ -->|"Persist Results"| PG
+    ROUTES -->|"Query"| PG
+```
+
+---
+
 ## 🏛 System Layers
 
 SpendOS is designed as a **decoupled asynchronous platform** consisting of four primary layers:
@@ -48,11 +97,68 @@ SpendOS is designed as a **decoupled asynchronous platform** consisting of four 
 
 ## 🗄️ Database Schema
 
-SpendOS uses **PostgreSQL** with the following core entities:
-- `User`: Manages authentication and identity.
-- `ProcurementTask`: Tracks the lifecycle of a background job.
-- `ProcurementSession`: Represents a historical analysis session.
-- `VendorResult`: Stores the structured scoring for each vendor in a session.
+SpendOS uses **PostgreSQL** (hosted on Neon) with the following core entities:
+
+```mermaid
+erDiagram
+    User {
+        uuid id PK
+        string email UK
+        string full_name
+        string hashed_password
+        datetime created_at
+    }
+    ProcurementTask {
+        uuid id PK
+        uuid user_id FK
+        string status
+        json result
+        datetime created_at
+    }
+    ProcurementSession {
+        uuid id PK
+        uuid user_id FK
+        string product_name
+        string category
+        float budget
+        string shipping_destination
+        string ai_explanation
+        string status
+        datetime created_at
+    }
+    VendorResult {
+        uuid id PK
+        uuid session_id FK
+        string vendor_id
+        string vendor_name
+        float final_score
+        float risk_score
+        float reliability_score
+        float cost_score
+        int rank
+        string explanation
+    }
+
+    User ||--o{ ProcurementTask : "creates"
+    User ||--o{ ProcurementSession : "owns"
+    ProcurementSession ||--o{ VendorResult : "contains"
+```
+
+---
+
+## 🔒 Security Architecture
+
+SpendOS implements a multi-layered defense strategy:
+
+| Layer | Mechanism | Implementation |
+|---|---|---|
+| **Authentication** | JWT in HttpOnly cookies | `app/auth.py` — bcrypt password hashing, access + refresh tokens |
+| **CSRF Protection** | Double-Submit Cookie pattern | CSRF token in cookie + `X-CSRF-Token` header validation |
+| **Rate Limiting** | SlowAPI (per-user / per-IP) | `app/middleware/rate_limit.py` — 30 req/min default |
+| **Security Headers** | OWASP best practices | `app/middleware/security_headers.py` — HSTS, X-Frame-Options, CSP |
+| **Input Validation** | Pydantic schemas | All request payloads validated with strict types and constraints |
+| **SQL Injection** | SQLAlchemy ORM | Parameterized queries throughout, no raw SQL |
+| **Authorization** | User-scoped data access | All queries filtered by `user_id` from JWT claims |
 
 ---
 
@@ -61,3 +167,6 @@ SpendOS uses **PostgreSQL** with the following core entities:
 - **Pydantic Validation**: All LLM outputs are strictly validated against Pydantic schemas.
 - **Hybrid Load Balancing**: High-throughput models (Groq/Compound) handle bulk data, while versatile models (Llama 3.3) handle complex reasoning.
 - **Regex Extraction**: Custom sanitization prevents "Heuristic Fallbacks" by robustly isolating JSON from chatty LLM outputs.
+- **Procurement Caching**: Identical requests are deduplicated using SHA-256 hashing to avoid redundant AI pipeline executions.
+- **Connection Pooling**: SQLAlchemy async engine with `pool_size=20` and `pool_pre_ping=True` for resilient database connections.
+

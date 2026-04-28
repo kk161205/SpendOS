@@ -1,3 +1,11 @@
+"""Procurement API routes.
+
+Endpoints for submitting procurement analysis requests, tracking task status
+via SSE, viewing analysis history, exporting results to CSV, and deleting
+sessions. All endpoints require JWT authentication and scope data to the
+authenticated user.
+"""
+
 import io
 import csv
 import logging
@@ -31,7 +39,20 @@ async def analyze_procurement(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Queue or return cached procurement analysis."""
+    """
+    Submit a procurement analysis request.
+
+    If an identical request was recently processed (cache hit), returns the
+    cached result immediately. Otherwise, enqueues a background ARQ job
+    and returns a ``task_id`` for polling or SSE subscription.
+
+    Returns:
+        TaskAcceptedResponse: Contains ``task_id`` and initial ``status``.
+
+    Raises:
+        422: If request payload fails Pydantic validation (e.g. weights don't sum to 1.0).
+        401: If the user is not authenticated.
+    """
     result = await ProcurementService.analyze(
         payload, 
         current_user["user_id"], 
@@ -47,7 +68,19 @@ async def get_task_status(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get status of a background task."""
+    """
+    Poll the current status of a background procurement task.
+
+    Args:
+        task_id: UUID of the task returned by ``/analyze``.
+
+    Returns:
+        TaskStatusResponse: Contains ``status`` ('pending' | 'processing' | 'completed' | 'failed')
+        and ``result`` (populated only when status is 'completed').
+
+    Raises:
+        404: If the task does not exist or belongs to another user.
+    """
     result = await db.execute(
         select(ProcurementTask).where(
             ProcurementTask.id == task_id,
@@ -137,7 +170,16 @@ async def get_procurement_history(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Get paginated history."""
+    """
+    Retrieve paginated procurement analysis history for the authenticated user.
+
+    Args:
+        limit: Maximum number of sessions to return (default 10).
+        offset: Number of sessions to skip for pagination.
+
+    Returns:
+        ProcurementHistoryPaginatedResponse: Contains ``total`` count and ``items`` list.
+    """
     total, sessions = await ProcurementService.get_history(current_user["user_id"], limit, offset, db)
     
     response = []
@@ -186,7 +228,18 @@ async def delete_procurement_session(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Delete a session."""
+    """
+    Delete a procurement session and its associated vendor results.
+
+    Args:
+        session_id: UUID of the session to delete.
+
+    Returns:
+        204 No Content on success.
+
+    Raises:
+        404: If the session does not exist or belongs to another user.
+    """
     success = await ProcurementService.delete_session(session_id, current_user["user_id"], db)
     if not success:
         raise HTTPException(status_code=404, detail="Session not found or forbidden")
