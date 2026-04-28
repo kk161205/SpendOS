@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # CORS settings
     allowed_origins: str = "http://localhost:5173,http://127.0.0.1:5173,https://spend-os.vercel.app"
 
+    # Regex pattern to allow Vercel preview deployments
+    cors_origins_regex: str = r"https://spend.*\.vercel\.app"
+
     @property
     def cors_origins_list(self) -> list[str]:
         """Convert comma-separated string to list of origins and normalize."""
