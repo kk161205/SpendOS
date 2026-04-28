@@ -40,6 +40,9 @@ async def vendor_enrichment_node(state: ProcurementWorkflowState) -> Procurement
             results.append(res)
         except Exception as e:
             results.append(e)
+        
+        # Small delay to prevent bursting limits
+        await asyncio.sleep(1.5)
 
     enriched = []
     for i, res in enumerate(results):

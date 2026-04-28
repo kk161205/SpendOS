@@ -42,9 +42,13 @@ async def risk_analysis_node(state: ProcurementWorkflowState) -> ProcurementWork
                 risk_breakdown={},
             )
 
-    # Run all analyses in parallel using asyncio.gather
-    tasks = [_safe_analyze(vendor) for vendor in state.enriched_vendors]
-    state.scored_vendors = await asyncio.gather(*tasks)
+    # Process sequentially to avoid LLM rate limits
+    state.scored_vendors = []
+    for vendor in state.enriched_vendors:
+        scored_vendor = await _safe_analyze(vendor)
+        state.scored_vendors.append(scored_vendor)
+        # Small delay to prevent bursting limits
+        await asyncio.sleep(1.5)
     
     logger.info(f"[risk_analysis] Scored risk for {len(state.scored_vendors)} vendors.")
     return state
