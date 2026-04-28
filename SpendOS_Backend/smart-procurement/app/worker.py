@@ -202,7 +202,7 @@ class WorkerSettings:
 
     # Retry configuration
     max_tries = 3           # Retry up to 3 times on failure
-    job_timeout = 120       # 2 minute timeout per job (AI pipeline can be slow)
+    job_timeout = 600       # 10 minute timeout per job (AI pipeline can be slow, handles API rate limit retries)
     retry_defer_s = 10      # Base delay between retries (ARQ uses exponential backoff)
 
     # Redis Garbage Collection
